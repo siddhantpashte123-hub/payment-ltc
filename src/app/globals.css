@@ -1,0 +1,69 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+    "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif;
+
+  --color-black: #000000;
+  --color-white: #ffffff;
+
+  --color-gray-50: #f9fafb;
+  --color-gray-100: #f3f4f6;
+  --color-gray-200: #e5e7eb;
+  --color-gray-300: #d1d5db;
+  --color-gray-400: #9ca3af;
+  --color-gray-500: #6b7280;
+  --color-gray-600: #4b5563;
+  --color-gray-700: #374151;
+  --color-gray-800: #1f2937;
+  --color-gray-900: #111827;
+
+  --color-emerald-400: #34d399;
+  --color-emerald-500: #10b981;
+  --color-rose-500: #f04438;
+  --color-amber-500: #f59e0b;
+
+  --radius-2xl: 1rem;
+  --radius-xl: 0.75rem;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  @apply bg-black text-white antialiased;
+}
+
+.glass-panel {
+  @apply bg-black/60 backdrop-blur-xl border border-white/10 rounded-2xl;
+}
+
+.premium-text {
+  background: linear-gradient(to right, #ffffff, #a8a8a8);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.glass-input {
+  @apply bg-white/5 border border-white/10 text-white placeholder-white/40 rounded-xl px-4 py-3 transition-all focus:outline-none focus:ring-1 focus:ring-white focus:border-transparent;
+}
+
+.glass-btn {
+  @apply bg-white text-black font-medium rounded-xl px-6 py-3 transition-all hover:bg-gray-100 hover:scale-[1.02] active:scale-[0.98];
+}
+
+.ghost-btn {
+  @apply bg-transparent border border-white/20 text-white font-medium rounded-xl px-6 py-3 transition-all hover:bg-white/10 hover:scale-[1.02] active:scale-[0.98];
+}
+
+.reveal {
+  opacity: 0;
+  transform: translateY(30px);
+  transition: opacity 0.8s ease-out, transform 0.8s ease-out;
+}
+
+.reveal.active {
+  opacity: 1;
+  transform: translateY(0);
+}
