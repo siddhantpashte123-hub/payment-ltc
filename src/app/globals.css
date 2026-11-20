@@ -136,3 +136,44 @@ body {
 .vignette {
   background: radial-gradient(circle at 50% 40%, transparent 30%, rgba(0,0,0,0.85) 100%);
 }
+
+/* ---------- Sheen sweep (black -> white button hover) ---------- */
+@keyframes sheen-sweep {
+  0% { transform: translateX(-160%) skewX(-20deg); }
+  100% { transform: translateX(260%) skewX(-20deg); }
+}
+.sheen-sweep {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 0;
+}
+.sheen-sweep::after {
+  content: '';
+  position: absolute;
+  top: -25%;
+  bottom: -25%;
+  left: 0;
+  width: 35%;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.45),
+    transparent
+  );
+  transform: translateX(-160%) skewX(-20deg);
+}
+.group:hover .sheen-sweep::after {
+  animation: sheen-sweep 0.8s ease-out;
+}
+
+/* ---------- Pop-in (receipt check) ---------- */
+@keyframes pop-in {
+  0% { transform: scale(0); opacity: 0; }
+  60% { transform: scale(1.15); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+.animate-pop {
+  animation: pop-in 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
