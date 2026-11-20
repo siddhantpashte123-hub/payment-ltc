@@ -1,6 +1,9 @@
 import type { Metadata, Viewport } from 'next'
 import './globals.css'
 import { Providers } from '@/components/providers'
+import { ToastProvider } from '@/components/ui/toast'
+
+const SITE_URL = 'https://www.bluewallet.cyou'
 
 const SITE_URL = 'https://payment-ltc.vercel.app'
 
@@ -84,7 +87,9 @@ export default function RootLayout({
   return (
     <html lang="en" className="scroll-smooth">
       <body className="font-sans min-h-screen">
-        <Providers>{children}</Providers>
+        <Providers>
+          <ToastProvider>{children}</ToastProvider>
+        </Providers>
       </body>
     </html>
   )

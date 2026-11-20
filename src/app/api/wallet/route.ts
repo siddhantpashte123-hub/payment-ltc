@@ -177,12 +177,19 @@ export async function GET(request: Request) {
     }
 
     // 4. Transactions (with explorer URLs)
+    const url = new URL(request.url)
+    const limit = Math.min(
+      Math.max(parseInt(url.searchParams.get('limit') || '50', 10), 1),
+      200
+    )
+    const offset = Math.max(parseInt(url.searchParams.get('offset') || '0', 10), 0)
+
     const { data: transactions, error: txError } = await supabase
       .from('transactions')
       .select('*')
       .eq('wallet_id', user.id)
       .order('created_at', { ascending: false })
-      .limit(50)
+      .range(offset, offset + limit - 1)
 
     if (txError) {
       return NextResponse.json(
@@ -203,6 +210,7 @@ export async function GET(request: Request) {
           status: tx.status,
           address: tx.counterparty_address ?? '',
           name: tx.counterparty_name ?? undefined,
+          note: tx.note ?? undefined,
           created_at: tx.created_at,
           tx_hash: tx.tx_hash ?? undefined,
           explorer: tx.tx_hash ? explorerTxUrl(tx.tx_hash) : undefined,

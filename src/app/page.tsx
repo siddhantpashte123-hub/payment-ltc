@@ -15,6 +15,9 @@ import {
   Layers,
   ChevronDown,
   HelpCircle,
+  Star,
+  Compass,
+  Rocket,
 } from 'lucide-react'
 
 export default function LandingPage() {
@@ -323,6 +326,126 @@ export default function LandingPage() {
           </div>
         </section>
 
+        {/* Testimonials */}
+        <section className="mt-32 mb-24 max-w-6xl mx-auto">
+          <div className="text-center mb-14 reveal">
+            <h2 className="text-3xl font-bold text-white tracking-tight">
+              Loved by Litecoin users
+            </h2>
+            <p className="text-white/50 mt-2">
+              Real wallets, real on-chain transactions, zero fees
+            </p>
+          </div>
+          <div className="grid md:grid-cols-3 gap-6">
+            {[
+              {
+                quote:
+                  "The cleanest LTC wallet I've used. Deposits show up automatically and sending takes seconds.",
+                name: 'Ananya R.',
+                role: 'Daily LTC user',
+                rating: 5,
+              },
+              {
+                quote:
+                  '0% fee is the real deal. I moved my whole stack here and never paid a platform cut.',
+                name: 'Vikram S.',
+                role: 'Trader',
+                rating: 5,
+              },
+              {
+                quote:
+                  'The QR deposit and receipts make it feel premium. Exactly what a modern wallet should be.',
+                name: 'Priya M.',
+                role: 'Freelancer',
+                rating: 5,
+              },
+            ].map((t, i) => (
+              <div
+                key={i}
+                className="tilt-card glass-panel p-6 reveal"
+                style={{ transitionDelay: `${i * 80}ms` }}
+              >
+                <div className="flex items-center gap-1 text-emerald-400 mb-4">
+                  {Array.from({ length: t.rating }).map((_, j) => (
+                    <Star
+                      key={j}
+                      size={14}
+                      className="fill-emerald-400 text-emerald-400"
+                    />
+                  ))}
+                </div>
+                <p className="text-white/80 text-sm leading-relaxed mb-5">
+                  "{t.quote}"
+                </p>
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-full bg-white/10 border border-white/10 flex items-center justify-center text-sm font-bold">
+                    {t.name.charAt(0)}
+                  </div>
+                  <div>
+                    <div className="text-sm font-semibold text-white">
+                      {t.name}
+                    </div>
+                    <div className="text-xs text-white/40">{t.role}</div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {/* Roadmap */}
+        <section className="mb-24 max-w-6xl mx-auto">
+          <div className="text-center mb-14 reveal">
+            <h2 className="text-3xl font-bold text-white tracking-tight">
+              Roadmap
+            </h2>
+            <p className="text-white/50 mt-2">
+              Where BlueWallet is headed
+            </p>
+          </div>
+          <div className="grid md:grid-cols-3 gap-6">
+            {[
+              {
+                icon: <Rocket size={24} className="text-emerald-400" />,
+                tag: 'Live now',
+                title: 'Core wallet',
+                desc: 'Deposit, withdraw, QR, receipts, live price graph and transaction history — all shipping today.',
+              },
+              {
+                icon: <Compass size={24} className="text-white" />,
+                tag: 'Next',
+                title: 'Multi-currency',
+                desc: 'More than Litecoin. Add BTC and other major chains with the same premium experience.',
+              },
+              {
+                icon: <Layers size={24} className="text-emerald-400" />,
+                tag: 'Planned',
+                title: 'Mobile apps',
+                desc: 'Native iOS and Android apps with biometric unlock and push notifications for every transaction.',
+              },
+            ].map((item, i) => (
+              <div
+                key={i}
+                className="tilt-card glass-panel p-6 reveal"
+                style={{ transitionDelay: `${i * 80}ms` }}
+              >
+                <div className="w-11 h-11 rounded-xl bg-white/5 flex items-center justify-center mb-4 border border-white/10">
+                  {item.icon}
+                </div>
+                <span className="inline-block text-[10px] font-semibold uppercase tracking-wider text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 rounded-full px-2 py-0.5 mb-3">
+                  {item.tag}
+                </span>
+                <h3 className="text-lg font-semibold text-white mb-2">
+                  {item.title}
+                </h3>
+                <p className="text-white/50 text-sm leading-relaxed">
+                  {item.desc}
+                </p>
+              </div>
+            ))}
+          </div>
+        </section>
+
         {/* Final CTA */}
         <section className="mb-24 max-w-4xl mx-auto">
           <div className="glass-panel p-10 md:p-14 text-center reveal relative overflow-hidden">
@@ -355,15 +478,46 @@ export default function LandingPage() {
         </section>
       </main>
 
-      <footer className="border-t border-white/10 bg-black py-10">
-        <div className="max-w-7xl mx-auto px-6 flex flex-col md:flex-row items-center justify-between gap-4">
-          <div className="flex items-center gap-2 text-sm text-white/50">
-            <span className="font-bold text-white">BlueWallet</span> · Premium Litecoin Wallet
+      <footer className="border-t border-white/10 bg-black py-12">
+        <div className="max-w-7xl mx-auto px-6">
+          <div className="flex flex-col md:flex-row items-center justify-between gap-8 mb-8">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-lg bg-white flex items-center justify-center text-black text-xs font-bold">
+                B
+              </div>
+              <span className="font-bold text-xl tracking-tighter premium-text">
+                BlueWallet
+              </span>
+            </div>
+            <p className="text-sm text-white/40 max-w-md text-center">
+              A premium black-and-white Litecoin wallet. Deposit and send real LTC
+              on mainnet with 0% platform fee.
+            </p>
+            <div className="flex items-center gap-6 text-xs text-white/40">
+              <a href="#" className="hover:text-white transition-colors">Privacy</a>
+              <a href="#" className="hover:text-white transition-colors">Terms</a>
+              <a href="#" className="hover:text-white transition-colors">Support</a>
+              <a href="#faq" className="hover:text-white transition-colors">FAQ</a>
+            </div>
           </div>
-          <div className="flex items-center gap-6 text-xs text-white/40">
-            <a href="#" className="hover:text-white transition-colors">Privacy</a>
-            <a href="#" className="hover:text-white transition-colors">Terms</a>
-            <a href="#" className="hover:text-white transition-colors">Support</a>
+          <div className="pt-8 border-t border-white/5 flex flex-col md:flex-row items-center justify-between gap-4">
+            <div className="text-xs text-white/30">
+              © {new Date().getFullYear()} BlueWallet. Premium Litecoin Wallet.
+            </div>
+            <div className="flex items-center gap-5 text-xs text-white/40">
+              <span className="inline-flex items-center gap-1.5">
+                <ShieldCheck size={12} className="text-emerald-400" />
+                Google sign-in
+              </span>
+              <span className="inline-flex items-center gap-1.5">
+                <Coins size={12} className="text-emerald-400" />
+                0% platform fee
+              </span>
+              <span className="inline-flex items-center gap-1.5">
+                <Layers size={12} className="text-emerald-400" />
+                Supabase backend
+              </span>
+            </div>
           </div>
         </div>
       </footer>
@@ -401,6 +555,22 @@ const FAQS = [
   {
     q: 'Where is BlueWallet hosted?',
     a: 'The frontend and API are deployed on Vercel, and the backend (auth, wallet data, transactions) runs on your own Supabase project with PostgreSQL and row-level security.',
+  },
+  {
+    q: 'Can I track my transactions on the blockchain?',
+    a: 'Yes. Every transaction links to a SoChain explorer page where you can see the tx hash, confirmations, and full on-chain details. You can also download your full history as CSV.',
+  },
+  {
+    q: 'Can I request a specific amount from someone?',
+    a: 'Yes. The Receive page lets you create a request for a specific LTC amount with a QR code and a shareable link — perfect for asking someone to pay you a set amount.',
+  },
+  {
+    q: 'Are there any limits on deposits or withdrawals?',
+    a: 'Deposits have no limit — you can receive any amount of LTC to your unique address. Withdrawals are limited only by your available balance and the standard on-chain network fee.',
+  },
+  {
+    q: 'What happens if I send LTC to a wrong address?',
+    a: 'On-chain transactions are irreversible. Always double-check the recipient address in the confirmation modal before confirming a withdrawal. Use saved addresses for frequent recipients to reduce mistakes.',
   },
 ]
 

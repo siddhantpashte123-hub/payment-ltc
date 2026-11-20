@@ -24,7 +24,7 @@ export async function POST(request: Request) {
       )
     }
 
-    let body: { to?: unknown; amount?: unknown; name?: unknown }
+    let body: { to?: unknown; amount?: unknown; name?: unknown; note?: unknown }
     try {
       body = await request.json()
     } catch {
@@ -36,6 +36,10 @@ export async function POST(request: Request) {
     const name =
       typeof body.name === 'string' && body.name.trim().length <= 60
         ? body.name.trim()
+        : null
+    const note =
+      typeof body.note === 'string' && body.note.trim().length <= 200
+        ? body.note.trim()
         : null
     if (!to || !isFinite(amount) || amount <= 0) {
       return NextResponse.json(
@@ -121,6 +125,7 @@ export async function POST(request: Request) {
       status: 'completed',
       counterparty_address: to,
       counterparty_name: name,
+      note,
       tx_hash: txid,
       created_at: now,
     })

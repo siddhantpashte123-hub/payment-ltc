@@ -20,6 +20,7 @@ import {
   CheckCircle2,
   AlertCircle,
   Loader2,
+  StickyNote,
 } from 'lucide-react'
 
 interface TxDetail {
@@ -29,6 +30,7 @@ interface TxDetail {
   status: 'completed' | 'pending' | 'failed'
   address: string
   name?: string
+  note?: string
   created_at: string
   tx_hash?: string
   explorer?: string
@@ -40,6 +42,7 @@ export default function TransactionDetailPage() {
   const txId = params.id
 
   const [tx, setTx] = useState<TxDetail | null>(null)
+  const [priceInr, setPriceInr] = useState<number | undefined>(undefined)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
@@ -76,6 +79,13 @@ export default function TransactionDetailPage() {
       }
     }
     load()
+    // Fetch price for the INR value of this transaction.
+    fetch('/api/price', { cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((p) => {
+        if (mounted && p?.priceInr) setPriceInr(p.priceInr)
+      })
+      .catch(() => {})
     return () => {
       mounted = false
     }
@@ -165,10 +175,27 @@ export default function TransactionDetailPage() {
                 {tx.address || '—'}
               </span>
             </DetailRow>
+            {tx.note && (
+              <DetailRow label="Note">
+                <span className="inline-flex items-center gap-1.5 text-sm text-white/70">
+                  <StickyNote size={14} className="text-white/40 flex-shrink-0" />
+                  {tx.note}
+                </span>
+              </DetailRow>
+            )}
             {tx.tx_hash && (
               <DetailRow label="Transaction ID">
                 <span className="font-mono text-xs text-white/70 break-all">
                   {tx.tx_hash}
+                </span>
+              </DetailRow>
+            )}
+            {priceInr !== undefined && (
+              <DetailRow label="Value (INR)">
+                <span className="font-semibold text-white">
+                  ≈ ₹{(tx.amount * priceInr).toLocaleString(undefined, {
+                    maximumFractionDigits: 2,
+                  })}
                 </span>
               </DetailRow>
             )}

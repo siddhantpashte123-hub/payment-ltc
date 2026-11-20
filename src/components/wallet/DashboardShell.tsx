@@ -5,6 +5,7 @@ import { useEffect, useState, useCallback, ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { LogOut, RefreshCw, ArrowLeft } from 'lucide-react'
+import { MobileNav } from '@/components/wallet/MobileNav'
 
 interface WalletData {
   balance: number
@@ -17,6 +18,7 @@ interface WalletData {
     status: 'completed' | 'pending' | 'failed'
     address: string
     name?: string
+    note?: string
     created_at: string
     tx_hash?: string
     explorer?: string
@@ -177,8 +179,9 @@ export function DashboardPageShell({
   children: ReactNode
 }) {
   return (
-    <div className="min-h-screen bg-black px-6 py-10 md:py-14">
+    <div className="min-h-screen bg-black px-6 py-10 md:py-14 pb-28 md:pb-14">
       <div className="max-w-7xl mx-auto">{children}</div>
+      <MobileNav />
     </div>
   )
 }
