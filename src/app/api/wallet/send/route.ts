@@ -1,6 +1,10 @@
 import { NextResponse } from 'next/server'
 import { adminClient, bearerToken, getUserFromToken } from '@/lib/api'
-
+import {
+  decryptKey,
+  sendLtc,
+  explorerTxUrl,
+} from '@/lib/blockchain'
 
 export async function POST(request: Request) {
   try {
@@ -38,9 +42,10 @@ export async function POST(request: Request) {
 
     const supabase = adminClient()
 
+    // Get wallet (address + encrypted private key).
     const { data: wallet, error: walletReadError } = await supabase
       .from('wallets')
-      .select('balance_ltc')
+      .select('ltc_address, priv_key_encrypted, balance_ltc')
       .eq('user_id', user.id)
       .maybeSingle()
 
@@ -63,13 +68,39 @@ export async function POST(request: Request) {
       )
     }
 
+    if (!wallet.priv_key_encrypted) {
+      return NextResponse.json(
+        { error: 'Wallet private key missing — please sign in again.' },
+        { status: 500 }
+      )
+    }
+
+    // Decrypt private key and broadcast a real LTC transaction.
+    const wif = decryptKey(wallet.priv_key_encrypted)
+    let txid: string
+    try {
+      const result = await sendLtc({
+        to,
+        amount,
+        wif,
+        changeAddress: wallet.ltc_address,
+      })
+      txid = result.txid
+    } catch (sendErr) {
+      const msg = sendErr instanceof Error ? sendErr.message : 'Send failed'
+      return NextResponse.json(
+        { error: `On-chain send failed: ${msg}` },
+        { status: 400 }
+      )
+    }
+
     const newBalance = balance - amount
     const now = new Date().toISOString()
 
-    // Deduct balance
+    // Deduct balance.
     const { error: updateError } = await supabase
       .from('wallets')
-      .update({ balance_ltc: newBalance })
+      .update({ balance_ltc: newBalance, last_checked_at: now })
       .eq('user_id', user.id)
     if (updateError) {
       return NextResponse.json(
@@ -78,13 +109,14 @@ export async function POST(request: Request) {
       )
     }
 
-    // Record the send transaction
+    // Record the send transaction with its on-chain txid.
     const { error: insertError } = await supabase.from('transactions').insert({
       wallet_id: user.id,
       type: 'send',
       amount_ltc: -amount,
       status: 'completed',
       counterparty_address: to,
+      tx_hash: txid,
       created_at: now,
     })
     if (insertError) {
@@ -97,6 +129,8 @@ export async function POST(request: Request) {
     return NextResponse.json({
       success: true,
       newBalance,
+      txid,
+      explorer: explorerTxUrl(txid),
       message: `Sent ${amount} LTC to ${to}`,
     })
   } catch (error) {

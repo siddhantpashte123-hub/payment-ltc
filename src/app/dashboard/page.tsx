@@ -7,12 +7,13 @@ import { AddressDisplay } from '@/components/wallet/AddressDisplay'
 import { SendForm } from '@/components/wallet/SendForm'
 import { TransactionList } from '@/components/wallet/TransactionList'
 import { Button } from '@/components/ui/button'
-import { LogOut, RefreshCw } from 'lucide-react'
+import { LogOut, RefreshCw, Wallet } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 
 interface WalletData {
   balance: number
   address: string
+  explorerAddress?: string
   transactions: Array<{
     id: string
     type: 'deposit' | 'send'
@@ -21,6 +22,7 @@ interface WalletData {
     address: string
     created_at: string
     tx_hash?: string
+    explorer?: string
   }>
 }
 
@@ -86,6 +88,7 @@ export default function DashboardPage() {
 
   const refresh = async () => {
     setError('')
+    setLoading(true)
     const accessToken = await getAccessToken()
     if (!accessToken) return
     const res = await fetch('/api/wallet', {
@@ -98,9 +101,10 @@ export default function DashboardPage() {
       const errData = await res.json().catch(() => ({}))
       setError(errData.error || 'Could not refresh wallet.')
     }
+    setLoading(false)
   }
 
-  const handleSend = async (data: { to: string; amount: number }) => {
+  const handleSend = async (sendData: { to: string; amount: number }) => {
     const accessToken = await getAccessToken()
     if (!accessToken) return
 
@@ -110,7 +114,7 @@ export default function DashboardPage() {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${accessToken}`,
       },
-      body: JSON.stringify(data),
+      body: JSON.stringify(sendData),
     })
 
     if (res.ok) {
@@ -140,7 +144,8 @@ export default function DashboardPage() {
 
   return (
     <div className="min-h-screen bg-black px-6 py-8">
-      <div className="max-w-5xl mx-auto">
+      <div className="max-w-6xl mx-auto">
+        {/* Header */}
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-8">
           <div>
             <h1 className="text-3xl font-bold text-white tracking-tight">
@@ -180,31 +185,80 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {data ? (
-          <>
-            <BalanceCard balance={data.balance} />
-
-            <div className="mt-8 grid lg:grid-cols-3 gap-6">
-              <div className="lg:col-span-2">
-                <AddressDisplay address={data.address} />
-              </div>
-              <div>
-                <SendForm onSend={handleSend} balance={data.balance} />
-              </div>
-            </div>
-
-            <div className="mt-8">
-              <TransactionList transactions={data.transactions} />
-            </div>
-          </>
-        ) : (
+        {!data ? (
           <div className="glass-panel p-8 rounded-3xl text-center">
             <p className="text-white/50 mb-4">
               Wallet is not ready yet. Sign in again to create it.
             </p>
             <Button onClick={() => router.push('/login')}>Sign in again</Button>
           </div>
+        ) : (
+          <>
+            {/* Section 1: Balance */}
+            <section className="mb-6">
+              <SectionTitle
+                icon={<Wallet size={16} />}
+                title="Balance"
+                subtitle="Your confirmed on-chain Litecoin balance"
+              />
+              <BalanceCard balance={data.balance} />
+            </section>
+
+            {/* Section 2: Deposit + Send */}
+            <section className="mb-6">
+              <SectionTitle
+                icon={<Wallet size={16} />}
+                title="Deposit & Send"
+                subtitle="Fund your wallet or send LTC to any address"
+              />
+              <div className="grid lg:grid-cols-2 gap-6">
+                <div>
+                  <AddressDisplay
+                    address={data.address}
+                    explorerAddress={data.explorerAddress}
+                  />
+                </div>
+                <div>
+                  <SendForm onSend={handleSend} balance={data.balance} />
+                </div>
+              </div>
+            </section>
+
+            {/* Section 3: Transaction history */}
+            <section>
+              <SectionTitle
+                icon={<RefreshCw size={16} />}
+                title="Activity"
+                subtitle="Your deposit and send history"
+              />
+              <TransactionList transactions={data.transactions} />
+            </section>
+          </>
         )}
+      </div>
+    </div>
+  )
+}
+
+function SectionTitle({
+  icon,
+  title,
+  subtitle,
+}: {
+  icon: React.ReactNode
+  title: string
+  subtitle: string
+}) {
+  return (
+    <div className="flex items-center gap-3 mb-4">
+      <div className="flex-shrink-0 w-9 h-9 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-white/70">
+        {icon}
+      </div>
+      <div>
+        <h2 className="text-lg font-semibold text-white tracking-tight leading-tight">
+          {title}
+        </h2>
+        <p className="text-xs text-white/40 leading-tight">{subtitle}</p>
       </div>
     </div>
   )
