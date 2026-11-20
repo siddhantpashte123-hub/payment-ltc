@@ -1,7 +1,7 @@
 'use client'
 
 import { Badge } from '@/components/ui/badge'
-import { ArrowUpRight, ArrowDownLeft, Clock } from 'lucide-react'
+import { ArrowUpRight, ArrowDownLeft, Clock, ExternalLink } from 'lucide-react'
 
 interface Transaction {
   id: string
@@ -11,6 +11,7 @@ interface Transaction {
   address: string
   created_at: string
   tx_hash?: string
+  explorer?: string
 }
 
 interface TransactionListProps {
@@ -58,28 +59,44 @@ export function TransactionList({ transactions }: TransactionListProps) {
               <p className="text-sm font-medium text-white truncate">
                 {tx.type === 'deposit' ? 'Deposit received' : 'LTC sent'}
               </p>
-              <p className="text-xs text-white/40 truncate">{tx.address}</p>
+              <p className="text-xs text-white/40 truncate">{tx.address || '—'}</p>
               <p className="text-xs text-white/40 mt-0.5">
                 {new Date(tx.created_at).toLocaleString()}
               </p>
             </div>
             <div className="flex flex-col items-end gap-1">
-              <span className={`font-mono text-sm font-bold ${
-                tx.type === 'deposit' ? 'text-emerald-400' : 'text-white'
-              }`}>
-                {tx.type === 'deposit' ? '+' : '−'}{tx.amount.toFixed(8)} LTC
-              </span>
-              <Badge
-                variant={
-                  tx.status === 'completed'
-                    ? 'success'
-                    : tx.status === 'pending'
-                    ? 'pending'
-                    : 'failed'
-                }
+              <span
+                className={`font-mono text-sm font-bold ${
+                  tx.type === 'deposit' ? 'text-emerald-400' : 'text-white'
+                }`}
               >
-                {tx.status}
-              </Badge>
+                {tx.type === 'deposit' ? '+' : '−'}
+                {tx.amount.toFixed(8)} LTC
+              </span>
+              <div className="flex items-center gap-2">
+                <Badge
+                  variant={
+                    tx.status === 'completed'
+                      ? 'success'
+                      : tx.status === 'pending'
+                      ? 'pending'
+                      : 'failed'
+                  }
+                >
+                  {tx.status}
+                </Badge>
+                {tx.explorer && (
+                  <a
+                    href={tx.explorer}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 text-[10px] text-white/40 hover:text-white/70 transition-colors"
+                  >
+                    <ExternalLink size={11} />
+                    View
+                  </a>
+                )}
+              </div>
             </div>
           </div>
         ))}

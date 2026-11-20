@@ -1,10 +1,10 @@
--- LTC Wallet Database Schema
+-- LTC Wallet Database Schema (Real blockchain wallet)
 -- Run this in your Supabase project's SQL Editor
 
 -- Enable UUID extension
 create extension if not exists "uuid-ossp";
 
--- Profiles table (extends Supabase Auth users)
+-- Profiles table (extends auth.users)
 create table if not exists public.profiles (
   id uuid references auth.users not null primary key,
   email text,
@@ -13,12 +13,14 @@ create table if not exists public.profiles (
   created_at timestamptz default now()
 );
 
--- Wallets table - one per user, with a unique LTC deposit address
+-- Wallets table - one per user, real LTC address + encrypted private key
 create table if not exists public.wallets (
   id uuid default uuid_generate_v4() primary key,
   user_id uuid references public.profiles(id) not null unique,
   ltc_address text not null unique,
+  priv_key_encrypted text,
   balance_ltc numeric(20, 8) default 0,
+  last_checked_at timestamptz,
   created_at timestamptz default now()
 );
 
@@ -30,13 +32,14 @@ create table if not exists public.transactions (
   amount_ltc numeric(20, 8) not null,
   status text check (status in ('completed', 'pending', 'failed')) default 'pending',
   counterparty_address text,
-  tx_hash text,
+  tx_hash text unique,
   created_at timestamptz default now()
 );
 
 -- Indexes
 create index if not exists idx_transactions_wallet_id on public.transactions(wallet_id);
 create index if not exists idx_transactions_created_at on public.transactions(created_at desc);
+create index if not exists idx_transactions_tx_hash on public.transactions(tx_hash);
 create index if not exists idx_wallets_ltc_address on public.wallets(ltc_address);
 
 -- Row Level Security (RLS)
@@ -64,8 +67,10 @@ create policy "Users can view own transactions"
   using ( auth.uid() = wallet_id );
 
 -- Notes:
--- - Deposits: detect incoming LTC to ltc_address via an external API (e.g. SoChain)
---   and credit balance_ltc + insert a 'deposit' transaction.
--- - Sends: debit balance_ltc + insert a 'send' transaction (this build records intent;
---   real broadcast requires private key signing on a secure backend).
--- - Each user gets exactly one unique ltc_address.
+-- - Deposits: on wallet load, the API queries SoChain for incoming LTC to
+--   ltc_address. New confirmed incoming txs are credited to balance_ltc and
+--   recorded as 'deposit' transactions (with tx_hash for the explorer link).
+-- - Sends: build + sign + broadcast a real LTC transaction via SoChain, then
+--   debit balance_ltc and record a 'send' transaction (with tx_hash).
+-- - Private keys are encrypted at rest with WALLET_SECRET_KEY.
+-- - Each user gets exactly one unique real LTC address.

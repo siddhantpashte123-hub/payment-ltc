@@ -2,10 +2,16 @@ import { NextResponse } from 'next/server'
 import {
   adminClient,
   bearerToken,
-  generateDepositAddress,
   getUserFromToken,
 } from '@/lib/api'
-
+import {
+  generateWallet,
+  encryptKey,
+  getAddressBalance,
+  getRecentTxs,
+  explorerTxUrl,
+  explorerAddressUrl,
+} from '@/lib/blockchain'
 
 export async function GET(request: Request) {
   try {
@@ -70,10 +76,10 @@ export async function GET(request: Request) {
       }
     }
 
-    // 2. Ensure wallet with unique LTC address
+    // 2. Ensure wallet with a REAL LTC address + encrypted private key
     const { data: wallet, error: walletReadError } = await supabase
       .from('wallets')
-      .select('id, ltc_address, balance_ltc')
+      .select('id, ltc_address, priv_key_encrypted, balance_ltc, last_checked_at')
       .eq('user_id', user.id)
       .maybeSingle()
 
@@ -86,14 +92,19 @@ export async function GET(request: Request) {
 
     let address = wallet?.ltc_address ?? ''
     let balance = Number(wallet?.balance_ltc ?? 0)
+    let privKeyEnc = wallet?.priv_key_encrypted ?? null
 
     if (!wallet) {
-      address = generateDepositAddress(user.id)
+      // Generate a real Litecoin wallet (address + private key).
+      const { address: newAddr, wif } = generateWallet()
+      address = newAddr
+      privKeyEnc = encryptKey(wif)
       const { data: created, error: walletInsertError } = await supabase
         .from('wallets')
         .insert({
           user_id: user.id,
           ltc_address: address,
+          priv_key_encrypted: privKeyEnc,
           balance_ltc: 0,
         })
         .select('ltc_address, balance_ltc')
@@ -109,7 +120,55 @@ export async function GET(request: Request) {
       balance = Number(created.balance_ltc ?? 0)
     }
 
-    // 3. Transactions
+    // 3. Deposit detection: check SoChain for incoming LTC to the address.
+    //    Credit any newly confirmed incoming transactions not yet recorded.
+    try {
+      const onchainBalance = await getAddressBalance(address)
+      const txs = await getRecentTxs(address)
+
+      // Credit deposits that are not yet recorded (match on tx_hash).
+      for (const tx of txs) {
+        // Determine if this tx is an incoming payment to our address.
+        const isIncoming = tx.outputs?.some(
+          (o) => o.address === address && parseFloat(o.value || '0') > 0
+        )
+        if (!isIncoming || tx.confirmations <= 0) continue
+
+        // Skip if already recorded.
+        const { data: existing } = await supabase
+          .from('transactions')
+          .select('id')
+          .eq('tx_hash', tx.txid)
+          .maybeSingle()
+        if (existing) continue
+
+        const amount = tx.outputs
+          .filter((o) => o.address === address)
+          .reduce((s, o) => s + (parseFloat(o.value || '0') || 0), 0)
+        if (amount <= 0) continue
+
+        await supabase.from('transactions').insert({
+          wallet_id: user.id,
+          type: 'deposit',
+          amount_ltc: amount,
+          status: 'completed',
+          counterparty_address: tx.inputs?.[0]?.address ?? null,
+          tx_hash: tx.txid,
+        })
+        balance += amount
+      }
+
+      // Update balance + last checked.
+      await supabase
+        .from('wallets')
+        .update({ balance_ltc: balance, last_checked_at: new Date().toISOString() })
+        .eq('user_id', user.id)
+    } catch (syncErr) {
+      // Deposit sync is best-effort; don't fail the whole request.
+      console.error('Deposit sync error:', syncErr)
+    }
+
+    // 4. Transactions (with explorer URLs)
     const { data: transactions, error: txError } = await supabase
       .from('transactions')
       .select('*')
@@ -127,6 +186,7 @@ export async function GET(request: Request) {
     return NextResponse.json({
       address,
       balance,
+      explorerAddress: explorerAddressUrl(address),
       transactions:
         transactions?.map((tx) => ({
           id: tx.id,
@@ -136,6 +196,7 @@ export async function GET(request: Request) {
           address: tx.counterparty_address ?? '',
           created_at: tx.created_at,
           tx_hash: tx.tx_hash ?? undefined,
+          explorer: tx.tx_hash ? explorerTxUrl(tx.tx_hash) : undefined,
         })) ?? [],
     })
   } catch (error) {
