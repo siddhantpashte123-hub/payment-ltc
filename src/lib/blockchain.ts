@@ -70,18 +70,31 @@ async function sochainGet<T = any>(path: string): Promise<T> {
   return json.data as T
 }
 
-/** Confirmed on-chain balance (LTC) for an address. */
-export async function getAddressBalance(address: string): Promise<number> {
-  try {
-    const data = await sochainGet<{ confirmed: string }>(
-      `get_balance/${NETWORK}/${address}`
-    )
-    return parseFloat(data.confirmed) || 0
-  } catch (e) {
-    // If the address has no activity, SoChain may error — treat as 0.
-    console.error('getAddressBalance error:', e)
-    return 0
+/** Retry a SoChain GET with backoff (handles rate limits / transient errors). */
+async function sochainGetWithRetry<T = any>(
+  path: string,
+  attempts = 3
+): Promise<T> {
+  let lastErr: unknown
+  for (let i = 0; i < attempts; i++) {
+    try {
+      return await sochainGet<T>(path)
+    } catch (e) {
+      lastErr = e
+      if (i < attempts - 1) {
+        await new Promise((r) => setTimeout(r, 600 * (i + 1)))
+      }
+    }
   }
+  throw lastErr
+}
+
+/** Confirmed on-chain balance (LTC) for an address. Throws on persistent failure. */
+export async function getAddressBalance(address: string): Promise<number> {
+  const data = await sochainGetWithRetry<{ confirmed: string }>(
+    `get_balance/${NETWORK}/${address}`
+  )
+  return parseFloat(data.confirmed) || 0
 }
 
 /** Unspent outputs for building a send transaction. */

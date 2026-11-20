@@ -59,17 +59,17 @@ export default function DepositPage() {
         if (!res.ok) return
         const wallet = await res.json()
         const txs = wallet.transactions || []
-        // Look for a completed deposit matching amount + address.
+        // Look for a completed deposit matching the amount. (A completed
+        // deposit row stores the sender's address, so we match on amount +
+        // type + status, not on the deposit address.)
         const found = txs.find(
           (t: {
             type: string
             amount: number
-            address: string
             status: string
           }) =>
             t.type === 'deposit' &&
             Math.abs(t.amount - receipt.amount) < 1e-8 &&
-            t.address === receipt.address &&
             t.status === 'completed'
         )
         if (found && mounted) setConfirmed(true)

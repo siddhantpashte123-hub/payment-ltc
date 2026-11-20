@@ -128,8 +128,10 @@ export async function GET(request: Request) {
       balance = Number(created.balance_ltc ?? 0)
     }
 
-    // 3. Deposit detection: check SoChain for incoming LTC to the address.
-    //    Credit any newly confirmed incoming transactions not yet recorded.
+    // 3. Deposit detection: sync from SoChain. On-chain confirmed balance is
+    //    the source of truth — if it exceeds the stored balance, the difference
+    //    is a deposit that was missed (rate-limited sync, failed detection,
+    //    etc.). Credit it so no confirmed incoming payment is ever lost.
     try {
       const onchainBalance = await getAddressBalance(address)
       const txs = await getRecentTxs(address)
@@ -164,6 +166,38 @@ export async function GET(request: Request) {
           tx_hash: tx.txid,
         })
         balance += amount
+      }
+
+      // Safety net: if the on-chain confirmed balance is higher than the
+      // stored balance, credit the difference. This catches deposits whose
+      // individual tx rows were never recorded (API failures, missed syncs).
+      if (onchainBalance > balance + 1e-12) {
+        const missed = onchainBalance - balance
+        await supabase.from('transactions').insert({
+          wallet_id: user.id,
+          type: 'deposit',
+          amount_ltc: missed,
+          status: 'completed',
+          counterparty_address: address,
+          tx_hash: null,
+        })
+        // Mark any pending deposit rows matching the credited amount as
+        // completed so the UI reflects the confirmed deposit.
+        const { data: pendingTxs } = await supabase
+          .from('transactions')
+          .select('id, amount_ltc')
+          .eq('wallet_id', user.id)
+          .eq('type', 'deposit')
+          .eq('status', 'pending')
+        for (const p of pendingTxs || []) {
+          if (Math.abs(Number(p.amount_ltc) - missed) < 1e-8) {
+            await supabase
+              .from('transactions')
+              .update({ status: 'completed' })
+              .eq('id', p.id)
+          }
+        }
+        balance = onchainBalance
       }
 
       // Update balance + last checked.
