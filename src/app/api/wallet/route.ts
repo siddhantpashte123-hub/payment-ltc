@@ -94,19 +94,27 @@ export async function GET(request: Request) {
     let balance = Number(wallet?.balance_ltc ?? 0)
     let privKeyEnc = wallet?.priv_key_encrypted ?? null
 
-    if (!wallet) {
+    // If wallet exists but has no encrypted private key, it was created by an
+    // older placeholder build — regenerate a real address + key.
+    const needsRegenerate = !!wallet && !privKeyEnc
+
+    if (!wallet || needsRegenerate) {
       // Generate a real Litecoin wallet (address + private key).
       const { address: newAddr, wif } = generateWallet()
       address = newAddr
       privKeyEnc = encryptKey(wif)
+
       const { data: created, error: walletInsertError } = await supabase
         .from('wallets')
-        .insert({
-          user_id: user.id,
-          ltc_address: address,
-          priv_key_encrypted: privKeyEnc,
-          balance_ltc: 0,
-        })
+        .upsert(
+          {
+            user_id: user.id,
+            ltc_address: address,
+            priv_key_encrypted: privKeyEnc,
+            balance_ltc: balance,
+          },
+          { onConflict: 'user_id' }
+        )
         .select('ltc_address, balance_ltc')
         .single()
 
