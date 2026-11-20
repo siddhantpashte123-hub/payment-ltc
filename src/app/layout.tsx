@@ -5,8 +5,6 @@ import { ToastProvider } from '@/components/ui/toast'
 
 const SITE_URL = 'https://www.bluewallet.cyou'
 
-const SITE_URL = 'https://payment-ltc.vercel.app'
-
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: {
