@@ -13,6 +13,8 @@ import {
   Lock,
   Zap,
   Layers,
+  ChevronDown,
+  HelpCircle,
 } from 'lucide-react'
 
 export default function LandingPage() {
@@ -30,13 +32,14 @@ export default function LandingPage() {
         <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
           <Link href="/" className="flex items-center gap-2 font-bold text-xl tracking-tighter">
             <div className="w-8 h-8 rounded-lg bg-white flex items-center justify-center text-black text-xs font-bold">
-              ₿
+              L
             </div>
-            <span className="premium-text">LTC Vault</span>
+            <span className="premium-text">Lumen</span>
           </Link>
           <div className="hidden md:flex items-center gap-6 text-sm text-white/70">
             <Link href="#features" className="hover:text-white transition-colors">Features</Link>
             <Link href="#how-it-works" className="hover:text-white transition-colors">How it works</Link>
+            <Link href="#faq" className="hover:text-white transition-colors">FAQ</Link>
             <Link href="#security" className="hover:text-white transition-colors">Security</Link>
           </div>
           <div className="flex items-center gap-3">
@@ -65,7 +68,7 @@ export default function LandingPage() {
             Your <span className="block text-white">Litecoin</span>,{' '}
             <span className="relative inline-block">
               <span className="relative text-transparent bg-clip-text animate-gradient bg-gradient-to-r from-white via-gray-300 to-white">
-                Vault
+                Lumen
               </span>
             </span>
           </h1>
@@ -110,9 +113,9 @@ export default function LandingPage() {
               <div className="flex items-center justify-between mb-6">
                 <div className="flex items-center gap-2">
                   <div className="w-8 h-8 rounded-lg bg-white flex items-center justify-center text-black text-sm font-bold">
-                    ₿
+                    L
                   </div>
-                  <span className="font-bold">LTC Vault</span>
+                  <span className="font-bold">Lumen</span>
                 </div>
                 <span className="text-[10px] text-emerald-400 uppercase tracking-wider">Mainnet</span>
               </div>
@@ -236,12 +239,21 @@ export default function LandingPage() {
             ))}
           </div>
         </section>
+
+        {/* FAQ */}
+        <section id="faq" className="mb-24 max-w-3xl mx-auto">
+          <div className="text-center mb-12 reveal">
+            <h2 className="text-3xl font-bold text-white tracking-tight">Frequently asked questions</h2>
+            <p className="text-white/50 mt-2">Everything you need to know about Lumen</p>
+          </div>
+          <FaqList />
+        </section>
       </main>
 
       <footer className="border-t border-white/10 bg-black py-10">
         <div className="max-w-7xl mx-auto px-6 flex flex-col md:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2 text-sm text-white/50">
-            <span className="font-bold text-white">LTC Vault</span> · Premium Litecoin Wallet
+            <span className="font-bold text-white">Lumen</span> · Premium Litecoin Wallet
           </div>
           <div className="flex items-center gap-6 text-xs text-white/40">
             <a href="#" className="hover:text-white transition-colors">Privacy</a>
@@ -250,6 +262,85 @@ export default function LandingPage() {
           </div>
         </div>
       </footer>
+    </div>
+  )
+}
+
+// ---------------- FAQ ----------------
+
+const FAQS = [
+  {
+    q: 'What is Lumen?',
+    a: 'Lumen is a premium black-and-white Litecoin wallet. It lets you deposit and send real Litecoin (LTC) on the mainnet, with a unique on-chain deposit address for every user.',
+  },
+  {
+    q: 'Is there really a 0% platform fee?',
+    a: 'Yes. Lumen charges 0% platform fee on your deposits and sends. You keep 100% of the Litecoin you move. Only the standard blockchain network fee (paid to the network, not to us) applies to sends.',
+  },
+  {
+    q: 'How do I deposit Litecoin?',
+    a: 'After signing in with Google, your unique LTC deposit address is shown on the dashboard. Send Litecoin to that address from any external wallet. Lumen auto-detects the incoming transaction on the blockchain and credits your balance instantly.',
+  },
+  {
+    q: 'How do I send Litecoin?',
+    a: 'Open the Send form on your dashboard, enter the recipient LTC address and the amount, then confirm. Lumen builds, signs, and broadcasts a real on-chain transaction. You can view the transaction on the blockchain explorer via the tx link.',
+  },
+  {
+    q: 'Do I need to create an account or password?',
+    a: 'No. Sign-in is Google-only — there is no email/password to manage. Your wallet and its private key are created automatically and stored encrypted on your own Supabase backend.',
+  },
+  {
+    q: 'Is my wallet secure?',
+    a: 'Each user gets a unique real Litecoin address. Private keys are encrypted at rest with a server-side secret. Authentication is handled by Supabase with Google, and all transactions are confirmed on-chain.',
+  },
+  {
+    q: 'Where is Lumen hosted?',
+    a: 'The frontend and API are deployed on Vercel, and the backend (auth, wallet data, transactions) runs on your own Supabase project with PostgreSQL and row-level security.',
+  },
+]
+
+function FaqList() {
+  const [open, setOpen] = useState<number | null>(0)
+  return (
+    <div className="space-y-3">
+      {FAQS.map((item, i) => {
+        const isOpen = open === i
+        return (
+          <div
+            key={i}
+            className={`glass-panel overflow-hidden reveal ${
+              isOpen ? 'border-white/20' : ''
+            }`}
+          >
+            <button
+              onClick={() => setOpen(isOpen ? null : i)}
+              className="w-full flex items-center justify-between gap-4 px-6 py-5 text-left"
+            >
+              <span className="flex items-center gap-3 text-white font-medium">
+                <HelpCircle size={18} className="text-emerald-400 flex-shrink-0" />
+                {item.q}
+              </span>
+              <ChevronDown
+                size={20}
+                className={`text-white/50 flex-shrink-0 transition-transform duration-300 ${
+                  isOpen ? 'rotate-180' : ''
+                }`}
+              />
+            </button>
+            <div
+              className={`grid transition-all duration-300 ${
+                isOpen ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'
+              }`}
+            >
+              <div className="overflow-hidden">
+                <p className="px-6 pb-5 pl-[3.75rem] text-sm text-white/50 leading-relaxed">
+                  {item.a}
+                </p>
+              </div>
+            </div>
+          </div>
+        )
+      })}
     </div>
   )
 }
