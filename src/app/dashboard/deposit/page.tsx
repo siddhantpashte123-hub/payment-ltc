@@ -1,7 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { QRCodeSVG } from 'qrcode.react'
 import {
   useWallet,
   DashboardHeader,
@@ -12,7 +13,14 @@ import {
 import { Receipt } from '@/components/wallet/Receipt'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { ArrowDownLeft, AlertCircle, Loader2 } from 'lucide-react'
+import {
+  ArrowDownLeft,
+  AlertCircle,
+  Loader2,
+  Copy,
+  Check,
+  QrCode,
+} from 'lucide-react'
 
 interface ReceiptData {
   amount: number
@@ -29,9 +37,60 @@ export default function DepositPage() {
   const [formError, setFormError] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [receipt, setReceipt] = useState<ReceiptData | null>(null)
+  const [confirmed, setConfirmed] = useState(false)
+  const [copied, setCopied] = useState(false)
+
+  // Poll the wallet for on-chain confirmation of the pending deposit.
+  useEffect(() => {
+    if (!receipt) return
+    let mounted = true
+
+    const check = async () => {
+      const token = await getAccessToken()
+      if (!token) return
+      try {
+        const res = await fetch('/api/wallet', {
+          headers: { Authorization: `Bearer ${token}` },
+          cache: 'no-store',
+        })
+        if (!res.ok) return
+        const wallet = await res.json()
+        const txs = wallet.transactions || []
+        // Look for a completed deposit matching amount + address.
+        const found = txs.find(
+          (t: {
+            type: string
+            amount: number
+            address: string
+            status: string
+          }) =>
+            t.type === 'deposit' &&
+            Math.abs(t.amount - receipt.amount) < 1e-8 &&
+            t.address === receipt.address &&
+            t.status === 'completed'
+        )
+        if (found && mounted) setConfirmed(true)
+      } catch {
+        // ignore
+      }
+    }
+
+    check()
+    const id = setInterval(check, 15000)
+    return () => {
+      mounted = false
+      clearInterval(id)
+    }
+  }, [receipt, getAccessToken])
 
   // Prefill the user's own deposit address once loaded.
   const effectiveAddress = address || data?.address || ''
+
+  const copyAddress = () => {
+    navigator.clipboard?.writeText(effectiveAddress)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -98,11 +157,52 @@ export default function DepositPage() {
           amount={receipt.amount}
           counterparty={receipt.address}
           explorer={receipt.explorer}
-          status="pending"
+          status={confirmed ? 'completed' : 'pending'}
+          live={!confirmed}
           onBack={() => router.push('/dashboard')}
         />
       ) : (
         <div className="max-w-xl mx-auto">
+          {/* QR code card */}
+          {effectiveAddress && (
+            <div className="glass-panel p-6 md:p-8 mb-6 text-center relative overflow-hidden">
+              <div className="absolute -top-20 left-1/2 -translate-x-1/2 w-56 h-56 rounded-full bg-emerald-500/10 blur-3xl pointer-events-none" />
+              <div className="relative z-10">
+                <div className="inline-flex items-center gap-2 mb-4">
+                  <QrCode size={18} className="text-emerald-400" />
+                  <h2 className="text-sm font-semibold text-white uppercase tracking-wider">
+                    Scan to Deposit
+                  </h2>
+                </div>
+                <div className="inline-block bg-white rounded-2xl p-6 shadow-lg">
+                  <QRCodeSVG
+                    value={effectiveAddress}
+                    size={180}
+                    level="M"
+                    bgColor="#ffffff"
+                    fgColor="#000000"
+                  />
+                </div>
+                <button
+                  onClick={copyAddress}
+                  className="mt-4 inline-flex items-center gap-2 text-xs text-white/50 hover:text-white transition-colors"
+                >
+                  {copied ? (
+                    <>
+                      <Check size={13} className="text-emerald-400" />
+                      Copied
+                    </>
+                  ) : (
+                    <>
+                      <Copy size={13} />
+                      Copy address
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          )}
+
           <form onSubmit={handleSubmit} className="space-y-6">
             {/* Amount */}
             <div className="glass-panel p-6 md:p-7 space-y-4">

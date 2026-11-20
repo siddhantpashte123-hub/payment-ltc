@@ -37,6 +37,15 @@ create table if not exists public.transactions (
   created_at timestamptz default now()
 );
 
+-- Saved addresses (whitelist) - quick-select recipients on withdraw
+create table if not exists public.saved_addresses (
+  id uuid default uuid_generate_v4() primary key,
+  user_id uuid references public.profiles(id) not null,
+  label text not null,
+  address text not null,
+  created_at timestamptz default now()
+);
+
 -- Indexes
 create index if not exists idx_transactions_wallet_id on public.transactions(wallet_id);
 create index if not exists idx_transactions_created_at on public.transactions(created_at desc);
@@ -47,6 +56,7 @@ create index if not exists idx_wallets_ltc_address on public.wallets(ltc_address
 alter table public.profiles enable row level security;
 alter table public.wallets enable row level security;
 alter table public.transactions enable row level security;
+alter table public.saved_addresses enable row level security;
 
 -- Profiles: users can read/update their own profile
 create policy "Users can view own profile"
@@ -66,6 +76,12 @@ create policy "Users can view own wallet"
 create policy "Users can view own transactions"
   on public.transactions for select
   using ( auth.uid() = wallet_id );
+
+-- Saved addresses: users manage their own saved addresses
+create policy "Users manage own saved addresses"
+  on public.saved_addresses for all
+  using ( auth.uid() = user_id )
+  with check ( auth.uid() = user_id );
 
 -- Notes:
 -- - Deposits: on wallet load, the API queries SoChain for incoming LTC to

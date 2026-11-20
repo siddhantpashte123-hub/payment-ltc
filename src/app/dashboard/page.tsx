@@ -1,5 +1,6 @@
 'use client'
 
+import { useEffect, useState } from 'react'
 import {
   useWallet,
   DashboardHeader,
@@ -13,13 +14,41 @@ import { TransactionList } from '@/components/wallet/TransactionList'
 import { PricePanel } from '@/components/wallet/PricePanel'
 import { BigActionButton } from '@/components/wallet/BigActionButton'
 import { ArrowDownLeft, ArrowUpRight, Coins } from 'lucide-react'
-import { useRouter } from 'next/navigation'
+
+interface PriceData {
+  priceInr: number
+  priceUsd: number
+}
 
 export default function DashboardPage() {
-  const router = useRouter()
   const { data, loading, error, refresh } = useWallet()
+  const [price, setPrice] = useState<PriceData | null>(null)
+
+  // Fetch LTC price for the fiat value of the balance.
+  useEffect(() => {
+    let mounted = true
+    const load = async () => {
+      try {
+        const res = await fetch('/api/price', { cache: 'no-store' })
+        if (!res.ok) return
+        const p = await res.json()
+        if (mounted) setPrice({ priceInr: p.priceInr, priceUsd: p.priceUsd })
+      } catch {
+        // price is optional; keep last value
+      }
+    }
+    load()
+    const id = setInterval(load, 60000)
+    return () => {
+      mounted = false
+      clearInterval(id)
+    }
+  }, [])
 
   if (loading) return <DashboardLoading />
+
+  const fiatValueInr =
+    data && price ? data.balance * price.priceInr : undefined
 
   return (
     <DashboardPageShell>
@@ -37,10 +66,7 @@ export default function DashboardPage() {
           <p className="text-white/50 mb-4">
             Wallet is not ready yet. Sign in again to create it.
           </p>
-          <button
-            onClick={() => router.push('/login')}
-            className="glass-btn"
-          >
+          <button onClick={() => (window.location.href = '/login')} className="glass-btn">
             Sign in again
           </button>
         </div>
@@ -49,7 +75,7 @@ export default function DashboardPage() {
           {/* Top: Balance + live price (both sides) */}
           <div className="grid lg:grid-cols-3 gap-6 mb-10">
             <div className="lg:col-span-1">
-              <BalanceCard balance={data.balance} />
+              <BalanceCard balance={data.balance} fiatValue={fiatValueInr} />
             </div>
             <div className="lg:col-span-2">
               <PricePanel />

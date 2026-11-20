@@ -25,7 +25,7 @@ export function BalanceCard({ balance, currency = 'LTC', fiatValue }: BalanceCar
         </div>
         {fiatValue !== undefined && (
           <p className="text-white/40 text-sm">
-            ≈ ${fiatValue.toLocaleString(undefined, {
+            ≈ ₹{fiatValue.toLocaleString(undefined, {
               minimumFractionDigits: 2,
               maximumFractionDigits: 2,
             })}

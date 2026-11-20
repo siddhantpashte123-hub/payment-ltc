@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   useWallet,
@@ -12,7 +12,22 @@ import {
 import { Receipt } from '@/components/wallet/Receipt'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { User, AlertCircle, Loader2, ArrowUpRight } from 'lucide-react'
+import {
+  User,
+  AlertCircle,
+  Loader2,
+  ArrowUpRight,
+  Save,
+  X,
+  BookUser,
+  Check,
+} from 'lucide-react'
+
+interface SavedAddress {
+  id: string
+  label: string
+  address: string
+}
 
 interface ReceiptData {
   amount: number
@@ -32,29 +47,105 @@ export default function WithdrawPage() {
   const [submitting, setSubmitting] = useState(false)
   const [receipt, setReceipt] = useState<ReceiptData | null>(null)
 
+  // Saved addresses
+  const [saved, setSaved] = useState<SavedAddress[]>([])
+  const [showSaveForm, setShowSaveForm] = useState(false)
+  const [saveLabel, setSaveLabel] = useState('')
+
+  // Confirmation modal
+  const [confirmOpen, setConfirmOpen] = useState(false)
+  const [confirmSending, setConfirmSending] = useState(false)
+
   const balance = data?.balance ?? 0
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setFormError('')
+  useEffect(() => {
+    const loadSaved = async () => {
+      const token = await getAccessToken()
+      if (!token) return
+      try {
+        const res = await fetch('/api/wallet/saved-addresses', {
+          headers: { Authorization: `Bearer ${token}` },
+          cache: 'no-store',
+        })
+        if (res.ok) {
+          const payload = await res.json()
+          setSaved(payload.addresses || [])
+        }
+      } catch {
+        // ignore
+      }
+    }
+    loadSaved()
+  }, [getAccessToken])
 
+  const handleSave = async (e: React.FormEvent) => {
+    e.preventDefault()
+    const token = await getAccessToken()
+    if (!token) return
+    const label = saveLabel.trim()
+    if (!label || !to.trim()) return
+    try {
+      const res = await fetch('/api/wallet/saved-addresses', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ label, address: to.trim() }),
+      })
+      if (res.ok) {
+        const payload = await res.json()
+        setSaved((prev) => [payload.address, ...prev])
+        setSaveLabel('')
+        setShowSaveForm(false)
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  const handleRemove = async (id: string) => {
+    const token = await getAccessToken()
+    if (!token) return
+    try {
+      const res = await fetch(`/api/wallet/saved-addresses/${id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      if (res.ok) setSaved((prev) => prev.filter((a) => a.id !== id))
+    } catch {
+      // ignore
+    }
+  }
+
+  const validate = () => {
+    setFormError('')
     const amt = parseFloat(amount)
     const addr = to.trim()
-
     if (!addr) {
       setFormError('Please enter a recipient LTC address')
-      return
+      return false
     }
     if (!amt || amt <= 0) {
       setFormError('Please enter a valid amount')
-      return
+      return false
     }
     if (amt > balance) {
       setFormError('Insufficient balance for this withdrawal')
-      return
+      return false
     }
+    return true
+  }
 
-    setSubmitting(true)
+  const handleContinue = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (validate()) setConfirmOpen(true)
+  }
+
+  const confirmSend = async () => {
+    setConfirmSending(true)
+    setFormError('')
+    const amt = parseFloat(amount)
     const token = await getAccessToken()
     if (!token) return
 
@@ -66,7 +157,7 @@ export default function WithdrawPage() {
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
-          to: addr,
+          to: to.trim(),
           amount: amt,
           name: name.trim() || undefined,
         }),
@@ -74,19 +165,22 @@ export default function WithdrawPage() {
       const payload = await res.json().catch(() => ({}))
       if (!res.ok) {
         setFormError(payload.error || 'Withdrawal failed')
-        setSubmitting(false)
+        setConfirmOpen(false)
+        setConfirmSending(false)
         return
       }
+      setConfirmOpen(false)
       setReceipt({
         amount: amt,
-        address: addr,
+        address: to.trim(),
         txHash: payload.txid || '',
         explorer: payload.explorer || '',
       })
     } catch {
       setFormError('Network error — withdrawal could not be submitted')
+      setConfirmOpen(false)
     } finally {
-      setSubmitting(false)
+      setConfirmSending(false)
     }
   }
 
@@ -114,7 +208,78 @@ export default function WithdrawPage() {
         />
       ) : (
         <div className="max-w-xl mx-auto">
-          <form onSubmit={handleSubmit} className="space-y-6">
+          {/* Saved addresses */}
+          {saved.length > 0 && (
+            <div className="glass-panel p-6 md:p-7 space-y-3 mb-6">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <BookUser size={16} className="text-emerald-400" />
+                  <h2 className="text-sm font-semibold text-white uppercase tracking-wider">
+                    Saved Addresses
+                  </h2>
+                </div>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShowSaveForm((s) => !s)}
+                >
+                  {showSaveForm ? (
+                    <>
+                      <X size={13} /> Cancel
+                    </>
+                  ) : (
+                    <>
+                      <Save size={13} /> Save current
+                    </>
+                  )}
+                </Button>
+              </div>
+
+              {showSaveForm && (
+                <form onSubmit={handleSave} className="flex gap-2">
+                  <Input
+                    placeholder="Label (e.g. Alex)"
+                    value={saveLabel}
+                    onChange={(e) => setSaveLabel(e.target.value)}
+                    maxLength={60}
+                  />
+                  <Button type="submit" variant="secondary" size="sm">
+                    <Save size={14} /> Save
+                  </Button>
+                </form>
+              )}
+
+              <div className="flex flex-wrap gap-2">
+                {saved.map((a) => (
+                  <div
+                    key={a.id}
+                    className="inline-flex items-center gap-2 bg-white/5 border border-white/10 rounded-lg pl-3 pr-2 py-1.5 hover:bg-white/10 transition-colors group"
+                  >
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setTo(a.address)
+                        setName(a.label)
+                      }}
+                      className="text-xs text-white hover:text-emerald-400 transition-colors truncate max-w-[180px]"
+                    >
+                      {a.label}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleRemove(a.id)}
+                      className="text-white/30 hover:text-rose-400 transition-colors p-0.5"
+                    >
+                      <X size={12} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <form onSubmit={handleContinue} className="space-y-6">
             {/* Recipient address */}
             <div className="glass-panel p-6 md:p-7 space-y-4">
               <div className="flex items-center gap-2">
@@ -220,6 +385,98 @@ export default function WithdrawPage() {
           </form>
         </div>
       )}
+
+      {/* Confirmation modal */}
+      {confirmOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
+          onClick={() => !confirmSending && setConfirmOpen(false)}
+        >
+          <div
+            className="glass-panel p-8 max-w-md w-full relative overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="absolute -top-16 left-1/2 -translate-x-1/2 w-48 h-48 rounded-full bg-white/5 blur-3xl pointer-events-none" />
+            <div className="relative z-10 space-y-5">
+              <div className="flex items-center gap-2">
+                <div className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center">
+                  <ArrowUpRight size={20} className="text-white/70" />
+                </div>
+                <h2 className="text-lg font-bold text-white">Confirm Withdrawal</h2>
+              </div>
+
+              <div className="bg-white/5 border border-white/10 rounded-xl p-4 space-y-3">
+                <ModalRow label="Recipient">
+                  <span className="font-mono text-xs text-white/70 break-all">
+                    {to}
+                  </span>
+                </ModalRow>
+                {name.trim() && <ModalRow label="Name">{name.trim()}</ModalRow>}
+                <ModalRow label="Amount">
+                  <span className="font-bold text-white">
+                    {parseFloat(amount).toFixed(8)} LTC
+                  </span>
+                </ModalRow>
+                <ModalRow label="Balance after">
+                  <span className="text-white/70">
+                    {(balance - parseFloat(amount)).toFixed(8)} LTC
+                  </span>
+                </ModalRow>
+              </div>
+
+              <p className="text-xs text-white/40 leading-relaxed">
+                This broadcasts a real on-chain Litecoin transaction. Please
+                double-check the recipient address before confirming.
+              </p>
+
+              <div className="flex gap-3">
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  onClick={() => setConfirmOpen(false)}
+                  disabled={confirmSending}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={confirmSend}
+                  className="w-full"
+                  disabled={confirmSending}
+                >
+                  {confirmSending ? (
+                    <>
+                      <Loader2 size={16} className="animate-spin mr-2" />
+                      Broadcasting…
+                    </>
+                  ) : (
+                    <>
+                      <Check size={16} className="mr-2" />
+                      Confirm & Send
+                    </>
+                  )}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </DashboardPageShell>
+  )
+}
+
+function ModalRow({
+  label,
+  children,
+}: {
+  label: string
+  children: React.ReactNode
+}) {
+  return (
+    <div className="flex items-start justify-between gap-4">
+      <span className="text-xs text-white/40 uppercase tracking-wider flex-shrink-0">
+        {label}
+      </span>
+      <div className="text-right min-w-0">{children}</div>
+    </div>
   )
 }
