@@ -6,8 +6,9 @@ import { BalanceCard } from '@/components/wallet/BalanceCard'
 import { AddressDisplay } from '@/components/wallet/AddressDisplay'
 import { SendForm } from '@/components/wallet/SendForm'
 import { TransactionList } from '@/components/wallet/TransactionList'
+import { PricePanel } from '@/components/wallet/PricePanel'
 import { Button } from '@/components/ui/button'
-import { LogOut, RefreshCw, Wallet } from 'lucide-react'
+import { LogOut, RefreshCw, Wallet, Coins, TrendingUp, TrendingDown } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 
 interface WalletData {
@@ -20,6 +21,7 @@ interface WalletData {
     amount: number
     status: 'completed' | 'pending' | 'failed'
     address: string
+    name?: string
     created_at: string
     tx_hash?: string
     explorer?: string
@@ -104,7 +106,7 @@ export default function DashboardPage() {
     setLoading(false)
   }
 
-  const handleSend = async (sendData: { to: string; amount: number }) => {
+  const handleSend = async (sendData: { to: string; amount: number; name?: string }) => {
     const accessToken = await getAccessToken()
     if (!accessToken) return
 
@@ -143,12 +145,12 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="min-h-screen bg-black px-6 py-8">
-      <div className="max-w-6xl mx-auto">
+    <div className="min-h-screen bg-black px-6 py-10 md:py-14">
+      <div className="max-w-7xl mx-auto">
         {/* Header */}
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-8">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-10">
           <div>
-            <h1 className="text-3xl font-bold text-white tracking-tight">
+            <h1 className="text-4xl font-bold text-white tracking-tight">
               Dashboard
             </h1>
             <p className="text-white/50 text-sm mt-1">
@@ -160,7 +162,7 @@ export default function DashboardPage() {
               variant="outline"
               size="sm"
               onClick={refresh}
-              className="h-10 px-3"
+              className="h-11 px-4"
             >
               <RefreshCw size={16} className="mr-2" />
               Refresh
@@ -169,7 +171,7 @@ export default function DashboardPage() {
               variant="ghost"
               size="sm"
               onClick={handleLogOut}
-              className="h-10 px-3"
+              className="h-11 px-4"
             >
               <LogOut size={16} className="mr-2" />
               Sign out
@@ -178,7 +180,7 @@ export default function DashboardPage() {
         </div>
 
         {error && (
-          <div className="mb-6 glass-panel border-rose-500/30 bg-rose-500/5 rounded-2xl px-6 py-5">
+          <div className="mb-8 glass-panel border-rose-500/30 bg-rose-500/5 rounded-2xl px-6 py-5">
             <p className="text-rose-500 font-medium text-sm break-words whitespace-pre-wrap">
               {error}
             </p>
@@ -186,7 +188,7 @@ export default function DashboardPage() {
         )}
 
         {!data ? (
-          <div className="glass-panel p-8 rounded-3xl text-center">
+          <div className="glass-panel p-10 rounded-3xl text-center">
             <p className="text-white/50 mb-4">
               Wallet is not ready yet. Sign in again to create it.
             </p>
@@ -194,20 +196,20 @@ export default function DashboardPage() {
           </div>
         ) : (
           <>
-            {/* Section 1: Balance */}
-            <section className="mb-6">
-              <SectionTitle
-                icon={<Wallet size={16} />}
-                title="Balance"
-                subtitle="Your confirmed on-chain Litecoin balance"
-              />
-              <BalanceCard balance={data.balance} />
-            </section>
+            {/* Top: Balance + live price (both sides) */}
+            <div className="grid lg:grid-cols-3 gap-6 mb-10">
+              <div className="lg:col-span-1">
+                <BalanceCard balance={data.balance} />
+              </div>
+              <div className="lg:col-span-2">
+                <PricePanel />
+              </div>
+            </div>
 
-            {/* Section 2: Deposit + Send */}
-            <section className="mb-6">
+            {/* Section: Deposit & Send */}
+            <section className="mb-10">
               <SectionTitle
-                icon={<Wallet size={16} />}
+                icon={<Wallet size={18} />}
                 title="Deposit & Send"
                 subtitle="Fund your wallet or send LTC to any address"
               />
@@ -224,12 +226,12 @@ export default function DashboardPage() {
               </div>
             </section>
 
-            {/* Section 3: Transaction history */}
+            {/* Section: Activity */}
             <section>
               <SectionTitle
-                icon={<RefreshCw size={16} />}
+                icon={<Coins size={18} />}
                 title="Activity"
-                subtitle="Your deposit and send history"
+                subtitle="Your deposit and send history with counterparty"
               />
               <TransactionList transactions={data.transactions} />
             </section>
@@ -250,12 +252,12 @@ function SectionTitle({
   subtitle: string
 }) {
   return (
-    <div className="flex items-center gap-3 mb-4">
-      <div className="flex-shrink-0 w-9 h-9 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-white/70">
+    <div className="flex items-center gap-3 mb-5">
+      <div className="flex-shrink-0 w-11 h-11 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-white/70">
         {icon}
       </div>
       <div>
-        <h2 className="text-lg font-semibold text-white tracking-tight leading-tight">
+        <h2 className="text-xl font-semibold text-white tracking-tight leading-tight">
           {title}
         </h2>
         <p className="text-xs text-white/40 leading-tight">{subtitle}</p>

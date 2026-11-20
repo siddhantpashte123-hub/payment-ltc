@@ -24,7 +24,7 @@ export async function POST(request: Request) {
       )
     }
 
-    let body: { to?: unknown; amount?: unknown }
+    let body: { to?: unknown; amount?: unknown; name?: unknown }
     try {
       body = await request.json()
     } catch {
@@ -33,6 +33,10 @@ export async function POST(request: Request) {
 
     const to = typeof body.to === 'string' ? body.to.trim() : ''
     const amount = Number(body.amount)
+    const name =
+      typeof body.name === 'string' && body.name.trim().length <= 60
+        ? body.name.trim()
+        : null
     if (!to || !isFinite(amount) || amount <= 0) {
       return NextResponse.json(
         { error: 'Invalid recipient address or amount' },
@@ -116,6 +120,7 @@ export async function POST(request: Request) {
       amount_ltc: -amount,
       status: 'completed',
       counterparty_address: to,
+      counterparty_name: name,
       tx_hash: txid,
       created_at: now,
     })

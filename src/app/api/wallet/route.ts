@@ -202,6 +202,7 @@ export async function GET(request: Request) {
           amount: Math.abs(Number(tx.amount_ltc)),
           status: tx.status,
           address: tx.counterparty_address ?? '',
+          name: tx.counterparty_name ?? undefined,
           created_at: tx.created_at,
           tx_hash: tx.tx_hash ?? undefined,
           explorer: tx.tx_hash ? explorerTxUrl(tx.tx_hash) : undefined,

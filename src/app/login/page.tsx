@@ -51,10 +51,10 @@ export default function LoginPage() {
       <div className="relative z-10 w-full max-w-md">
         {/* Logo / brand */}
         <div className="text-center mb-10">
-          <div className="w-16 h-16 rounded-2xl bg-white flex items-center justify-center text-black text-3xl font-bold mx-auto mb-4 animate-float">
-            L
+          <div className="w-16 h-16 rounded-2xl bg-white flex items-center justify-center text-black text-4xl font-bold mx-auto mb-4 animate-float">
+            B
           </div>
-          <h1 className="text-3xl font-bold text-white tracking-tight">Welcome to Lumen</h1>
+          <h1 className="text-3xl font-bold text-white tracking-tight">Welcome to BlueWallet</h1>
           <p className="text-white/50 mt-2">
             Sign in with Google to access your Litecoin wallet.
           </p>

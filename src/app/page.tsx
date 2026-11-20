@@ -32,9 +32,9 @@ export default function LandingPage() {
         <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
           <Link href="/" className="flex items-center gap-2 font-bold text-xl tracking-tighter">
             <div className="w-8 h-8 rounded-lg bg-white flex items-center justify-center text-black text-xs font-bold">
-              L
+              B
             </div>
-            <span className="premium-text">Lumen</span>
+            <span className="premium-text">BlueWallet</span>
           </Link>
           <div className="hidden md:flex items-center gap-6 text-sm text-white/70">
             <Link href="#features" className="hover:text-white transition-colors">Features</Link>
@@ -68,7 +68,7 @@ export default function LandingPage() {
             Your <span className="block text-white">Litecoin</span>,{' '}
             <span className="relative inline-block">
               <span className="relative text-transparent bg-clip-text animate-gradient bg-gradient-to-r from-white via-gray-300 to-white">
-                Lumen
+                BlueWallet
               </span>
             </span>
           </h1>
@@ -113,9 +113,9 @@ export default function LandingPage() {
               <div className="flex items-center justify-between mb-6">
                 <div className="flex items-center gap-2">
                   <div className="w-8 h-8 rounded-lg bg-white flex items-center justify-center text-black text-sm font-bold">
-                    L
+                    B
                   </div>
-                  <span className="font-bold">Lumen</span>
+                  <span className="font-bold">BlueWallet</span>
                 </div>
                 <span className="text-[10px] text-emerald-400 uppercase tracking-wider">Mainnet</span>
               </div>
@@ -240,11 +240,116 @@ export default function LandingPage() {
           </div>
         </section>
 
+        {/* Why BlueWallet */}
+        <section className="mt-32 mb-24 max-w-6xl mx-auto">
+          <div className="text-center mb-14 reveal">
+            <h2 className="text-3xl font-bold text-white tracking-tight">
+              Why BlueWallet
+            </h2>
+            <p className="text-white/50 mt-2">
+              Built for people who want their Litecoin, simple and secure
+            </p>
+          </div>
+          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
+            {[
+              { icon: <Zap size={24} className="text-emerald-400" />, title: 'Real On-Chain', desc: 'Every deposit and send is a genuine Litecoin mainnet transaction, confirmed and verifiable.' },
+              { icon: <Coins size={24} className="text-white" />, title: 'Zero Fees', desc: 'No platform fee on deposits or sends. Keep every LTC you move.' },
+              { icon: <ShieldCheck size={24} className="text-white" />, title: 'Encrypted Keys', desc: 'Your private keys are encrypted at rest with a server-side secret.' },
+              { icon: <Layers size={24} className="text-emerald-400" />, title: 'Own Backend', desc: 'You control the Supabase backend with row-level security for every user.' },
+            ].map((item, i) => (
+              <div key={i} className="tilt-card glass-panel p-6 reveal" style={{ transitionDelay: `${i * 80}ms` }}>
+                <div className="w-11 h-11 rounded-xl bg-white/5 flex items-center justify-center mb-4 border border-white/10">
+                  {item.icon}
+                </div>
+                <h3 className="text-base font-semibold text-white mb-1.5">{item.title}</h3>
+                <p className="text-sm text-white/50 leading-relaxed">{item.desc}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {/* Security deep-dive */}
+        <section id="security" className="mb-24 max-w-5xl mx-auto">
+          <div className="glass-panel p-8 md:p-12 reveal">
+            <div className="grid md:grid-cols-2 gap-10 items-center">
+              <div>
+                <h2 className="text-3xl font-bold text-white tracking-tight mb-4">
+                  Security, built in
+                </h2>
+                <p className="text-white/50 leading-relaxed mb-6">
+                  BlueWallet keeps your Litecoin protected at every step. Google-only
+                  sign-in, encrypted private keys, and on-chain confirmation mean your
+                  funds are always under your control.
+                </p>
+                <div className="space-y-4">
+                  {[
+                    { icon: <ShieldCheck size={20} className="text-emerald-400" />, title: 'Google-only auth', desc: 'No passwords. Secure Google sign-in via Supabase.' },
+                    { icon: <Lock size={20} className="text-white" />, title: 'Encrypted keys', desc: 'Private keys encrypted with AES-256-GCM before storage.' },
+                    { icon: <Layers size={20} className="text-emerald-400" />, title: 'Row-level security', desc: 'Each user only sees their own wallet and transactions.' },
+                  ].map((s, i) => (
+                    <div key={i} className="flex items-start gap-3">
+                      <div className="flex-shrink-0 w-9 h-9 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center">
+                        {s.icon}
+                      </div>
+                      <div>
+                        <h4 className="text-white font-medium text-sm">{s.title}</h4>
+                        <p className="text-white/50 text-xs">{s.desc}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className="relative flex justify-center">
+                <div className="absolute inset-0 animate-spin-3d rounded-3xl bg-gradient-to-tr from-emerald-500/10 to-transparent blur-xl" />
+                <div className="relative glass-panel p-8 w-64 text-center animate-float">
+                  <div className="w-14 h-14 rounded-2xl bg-white flex items-center justify-center text-black text-2xl font-bold mx-auto mb-4">
+                    B
+                  </div>
+                  <div className="text-white font-bold text-lg">BlueWallet</div>
+                  <div className="text-[10px] text-emerald-400 uppercase tracking-wider mt-1">
+                    Secure · On-chain · 0% fee
+                  </div>
+                  <div className="mt-5 space-y-2">
+                    <div className="bg-white/5 border border-white/10 rounded-lg p-2 text-[10px] text-white/60">
+                      🔒 Google sign-in
+                    </div>
+                    <div className="bg-white/5 border border-white/10 rounded-lg p-2 text-[10px] text-white/60">
+                      🔐 Encrypted keys
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* Final CTA */}
+        <section className="mb-24 max-w-4xl mx-auto">
+          <div className="glass-panel p-10 md:p-14 text-center reveal relative overflow-hidden">
+            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-2/3 h-40 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
+            <div className="relative">
+              <h2 className="text-3xl md:text-4xl font-bold text-white tracking-tight mb-4">
+                Ready to manage your Litecoin?
+              </h2>
+              <p className="text-white/50 mb-8 max-w-xl mx-auto">
+                Open your BlueWallet in seconds with Google. Get your unique LTC
+                address and start depositing and sending — with 0% platform fee.
+              </p>
+              <Link href="/login" className="inline-block">
+                <Button size="lg">
+                  <Sparkles size={20} className="mr-2" />
+                  Open BlueWallet
+                </Button>
+              </Link>
+            </div>
+          </div>
+        </section>
+
         {/* FAQ */}
         <section id="faq" className="mb-24 max-w-3xl mx-auto">
           <div className="text-center mb-12 reveal">
             <h2 className="text-3xl font-bold text-white tracking-tight">Frequently asked questions</h2>
-            <p className="text-white/50 mt-2">Everything you need to know about Lumen</p>
+            <p className="text-white/50 mt-2">Everything you need to know about BlueWallet</p>
           </div>
           <FaqList />
         </section>
@@ -253,7 +358,7 @@ export default function LandingPage() {
       <footer className="border-t border-white/10 bg-black py-10">
         <div className="max-w-7xl mx-auto px-6 flex flex-col md:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2 text-sm text-white/50">
-            <span className="font-bold text-white">Lumen</span> · Premium Litecoin Wallet
+            <span className="font-bold text-white">BlueWallet</span> · Premium Litecoin Wallet
           </div>
           <div className="flex items-center gap-6 text-xs text-white/40">
             <a href="#" className="hover:text-white transition-colors">Privacy</a>
@@ -270,20 +375,20 @@ export default function LandingPage() {
 
 const FAQS = [
   {
-    q: 'What is Lumen?',
-    a: 'Lumen is a premium black-and-white Litecoin wallet. It lets you deposit and send real Litecoin (LTC) on the mainnet, with a unique on-chain deposit address for every user.',
+    q: 'What is BlueWallet?',
+    a: 'BlueWallet is a premium black-and-white Litecoin wallet. It lets you deposit and send real Litecoin (LTC) on the mainnet, with a unique on-chain deposit address for every user.',
   },
   {
     q: 'Is there really a 0% platform fee?',
-    a: 'Yes. Lumen charges 0% platform fee on your deposits and sends. You keep 100% of the Litecoin you move. Only the standard blockchain network fee (paid to the network, not to us) applies to sends.',
+    a: 'Yes. BlueWallet charges 0% platform fee on your deposits and sends. You keep 100% of the Litecoin you move. Only the standard blockchain network fee (paid to the network, not to us) applies to sends.',
   },
   {
     q: 'How do I deposit Litecoin?',
-    a: 'After signing in with Google, your unique LTC deposit address is shown on the dashboard. Send Litecoin to that address from any external wallet. Lumen auto-detects the incoming transaction on the blockchain and credits your balance instantly.',
+    a: 'After signing in with Google, your unique LTC deposit address is shown on the dashboard. Send Litecoin to that address from any external wallet. BlueWallet auto-detects the incoming transaction on the blockchain and credits your balance instantly.',
   },
   {
     q: 'How do I send Litecoin?',
-    a: 'Open the Send form on your dashboard, enter the recipient LTC address and the amount, then confirm. Lumen builds, signs, and broadcasts a real on-chain transaction. You can view the transaction on the blockchain explorer via the tx link.',
+    a: 'Open the Send form on your dashboard, enter the recipient LTC address and the amount, then confirm. BlueWallet builds, signs, and broadcasts a real on-chain transaction. You can view the transaction on the blockchain explorer via the tx link.',
   },
   {
     q: 'Do I need to create an account or password?',
@@ -294,7 +399,7 @@ const FAQS = [
     a: 'Each user gets a unique real Litecoin address. Private keys are encrypted at rest with a server-side secret. Authentication is handled by Supabase with Google, and all transactions are confirmed on-chain.',
   },
   {
-    q: 'Where is Lumen hosted?',
+    q: 'Where is BlueWallet hosted?',
     a: 'The frontend and API are deployed on Vercel, and the backend (auth, wallet data, transactions) runs on your own Supabase project with PostgreSQL and row-level security.',
   },
 ]

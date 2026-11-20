@@ -2,16 +2,17 @@
 
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Send, AlertCircle } from 'lucide-react'
+import { Send, AlertCircle, User } from 'lucide-react'
 import { useState } from 'react'
 
 interface SendFormProps {
-  onSend: (data: { to: string; amount: number }) => void
+  onSend: (data: { to: string; amount: number; name?: string }) => void
   balance: number
 }
 
 export function SendForm({ onSend, balance }: SendFormProps) {
   const [to, setTo] = useState('')
+  const [name, setName] = useState('')
   const [amount, setAmount] = useState('')
   const [error, setError] = useState('')
   const [sending, setSending] = useState(false)
@@ -36,11 +37,15 @@ export function SendForm({ onSend, balance }: SendFormProps) {
     }
 
     setSending(true)
-    onSend({ to: addr, amount: amt })
+    onSend({
+      to: addr,
+      amount: amt,
+      name: name.trim() || undefined,
+    })
   }
 
   return (
-    <form onSubmit={handleSubmit} className="glass-panel p-6 space-y-4">
+    <form onSubmit={handleSubmit} className="glass-panel p-6 md:p-7 space-y-4">
       <div>
         <h3 className="text-sm font-semibold text-white uppercase tracking-wider mb-3">
           Send LTC
@@ -56,6 +61,24 @@ export function SendForm({ onSend, balance }: SendFormProps) {
               onChange={(e) => setTo(e.target.value)}
             />
           </div>
+          <div>
+            <label className="block text-xs font-medium text-white/50 mb-1.5">
+              Recipient Name (optional)
+            </label>
+            <div className="relative">
+              <User
+                size={16}
+                className="absolute left-3.5 top-1/2 -translate-y-1/2 text-white/40"
+              />
+              <Input
+                placeholder="e.g. Alex, Exchange..."
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                className="pl-10"
+                maxLength={60}
+              />
+            </div>
+          </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-medium text-white/50 mb-1.5">
@@ -70,12 +93,13 @@ export function SendForm({ onSend, balance }: SendFormProps) {
               />
             </div>
             <div className="flex items-end gap-2">
-              <span className="text-white/40">Max: {balance.toFixed(8)}</span>
+              <span className="text-white/40 text-xs pb-2.5">Max: {balance.toFixed(8)}</span>
               <Button
                 type="button"
                 variant="ghost"
                 size="sm"
                 onClick={() => setAmount(balance.toFixed(8))}
+                className="mb-0.5"
               >
                 Max
               </Button>

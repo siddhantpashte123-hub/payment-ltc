@@ -1,7 +1,13 @@
 'use client'
 
 import { Badge } from '@/components/ui/badge'
-import { ArrowUpRight, ArrowDownLeft, Clock, ExternalLink } from 'lucide-react'
+import {
+  ArrowUpRight,
+  ArrowDownLeft,
+  Clock,
+  ExternalLink,
+  User,
+} from 'lucide-react'
 
 interface Transaction {
   id: string
@@ -9,6 +15,7 @@ interface Transaction {
   amount: number
   status: 'completed' | 'pending' | 'failed'
   address: string
+  name?: string
   created_at: string
   tx_hash?: string
   explorer?: string
@@ -32,18 +39,18 @@ export function TransactionList({ transactions }: TransactionListProps) {
   }
 
   return (
-    <div className="glass-panel p-6">
-      <h3 className="text-sm font-semibold text-white uppercase tracking-wider mb-4">
+    <div className="glass-panel p-6 md:p-8">
+      <h3 className="text-sm font-semibold text-white uppercase tracking-wider mb-6">
         Transaction History
       </h3>
-      <div className="space-y-3">
+      <div className="space-y-4">
         {transactions.map((tx) => (
           <div
             key={tx.id}
-            className="flex items-center gap-4 border-b border-white/5 pb-4 last:border-0 last:pb-0"
+            className="flex items-center gap-4 border-b border-white/5 pb-5 last:border-0 last:pb-0"
           >
             <div
-              className={`flex-shrink-0 w-10 h-10 rounded-xl flex items-center justify-center ${
+              className={`flex-shrink-0 w-11 h-11 rounded-xl flex items-center justify-center ${
                 tx.type === 'deposit'
                   ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
                   : 'bg-white/5 text-white/40 border border-white/10'
@@ -59,12 +66,16 @@ export function TransactionList({ transactions }: TransactionListProps) {
               <p className="text-sm font-medium text-white truncate">
                 {tx.type === 'deposit' ? 'Deposit received' : 'LTC sent'}
               </p>
-              <p className="text-xs text-white/40 truncate">{tx.address || '—'}</p>
-              <p className="text-xs text-white/40 mt-0.5">
+              {/* Counterparty: name if present, else address */}
+              <p className="text-xs text-white/40 truncate flex items-center gap-1">
+                <User size={11} className="flex-shrink-0" />
+                {tx.name || tx.address || '—'}
+              </p>
+              <p className="text-xs text-white/40 mt-1">
                 {new Date(tx.created_at).toLocaleString()}
               </p>
             </div>
-            <div className="flex flex-col items-end gap-1">
+            <div className="flex flex-col items-end gap-1.5">
               <span
                 className={`font-mono text-sm font-bold ${
                   tx.type === 'deposit' ? 'text-emerald-400' : 'text-white'

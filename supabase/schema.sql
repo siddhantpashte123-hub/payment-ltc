@@ -32,6 +32,7 @@ create table if not exists public.transactions (
   amount_ltc numeric(20, 8) not null,
   status text check (status in ('completed', 'pending', 'failed')) default 'pending',
   counterparty_address text,
+  counterparty_name text,
   tx_hash text unique,
   created_at timestamptz default now()
 );
