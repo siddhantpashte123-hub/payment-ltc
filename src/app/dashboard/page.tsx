@@ -7,7 +7,7 @@ import { AddressDisplay } from '@/components/wallet/AddressDisplay'
 import { SendForm } from '@/components/wallet/SendForm'
 import { TransactionList } from '@/components/wallet/TransactionList'
 import { Button } from '@/components/ui/button'
-import { LogOut, Wallet, RefreshCw } from 'lucide-react'
+import { LogOut, RefreshCw } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 
 interface WalletData {
@@ -28,6 +28,7 @@ export default function DashboardPage() {
   const router = useRouter()
   const [data, setData] = useState<WalletData | null>(null)
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
   const [user, setUser] = useState<{ email?: string } | null>(null)
 
   const getClient = () => createClient()
@@ -56,12 +57,23 @@ export default function DashboardPage() {
             ? { Authorization: `Bearer ${accessToken}` }
             : {},
         })
-        if (res.ok) {
-          const wallet = await res.json()
-          if (mounted) setData(wallet)
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}))
+          if (mounted) {
+            setError(
+              errData.error ||
+                `Wallet API returned ${res.status}. Check server logs.`
+            )
+          }
+          return
+        }
+        const wallet = await res.json()
+        if (mounted) {
+          setData(wallet)
+          setLoading(false)
         }
       } catch {
-        // silent
+        if (mounted) setError('Network error while loading wallet.')
       } finally {
         if (mounted) setLoading(false)
       }
@@ -73,6 +85,7 @@ export default function DashboardPage() {
   }, [])
 
   const refresh = async () => {
+    setError('')
     const accessToken = await getAccessToken()
     if (!accessToken) return
     const res = await fetch('/api/wallet', {
@@ -81,6 +94,9 @@ export default function DashboardPage() {
     if (res.ok) {
       const wallet = await res.json()
       setData(wallet)
+    } else {
+      const errData = await res.json().catch(() => ({}))
+      setError(errData.error || 'Could not refresh wallet.')
     }
   }
 
@@ -98,10 +114,11 @@ export default function DashboardPage() {
     })
 
     if (res.ok) {
+      setError('')
       await refresh()
     } else {
-      const err = await res.json()
-      alert(err.error || 'Send failed')
+      const errData = await res.json().catch(() => ({}))
+      alert(errData.error || 'Send failed')
     }
   }
 
@@ -116,17 +133,6 @@ export default function DashboardPage() {
         <div className="flex flex-col items-center gap-3">
           <div className="w-10 h-10 border-4 border-white/10 border-t-white rounded-full animate-spin" />
           <p className="text-white/50 text-sm">Loading wallet…</p>
-        </div>
-      </div>
-    )
-  }
-
-  if (!data) {
-    return (
-      <div className="min-h-screen bg-black flex items-center justify-center p-6">
-        <div className="glass-panel p-8 rounded-3xl text-center">
-          <p className="text-white/50 mb-4">Unable to load wallet.</p>
-          <Button onClick={() => router.push('/login')}>Sign in again</Button>
         </div>
       </div>
     )
@@ -166,20 +172,39 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        <BalanceCard balance={data.balance} />
-
-        <div className="mt-8 grid lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-2">
-            <AddressDisplay address={data.address} />
+        {error && (
+          <div className="mb-6 glass-panel border-rose-500/30 bg-rose-500/5 rounded-2xl px-6 py-5">
+            <p className="text-rose-500 font-medium text-sm break-words whitespace-pre-wrap">
+              {error}
+            </p>
           </div>
-          <div>
-            <SendForm onSend={handleSend} balance={data.balance} />
-          </div>
-        </div>
+        )}
 
-        <div className="mt-8">
-          <TransactionList transactions={data.transactions} />
-        </div>
+        {data ? (
+          <>
+            <BalanceCard balance={data.balance} />
+
+            <div className="mt-8 grid lg:grid-cols-3 gap-6">
+              <div className="lg:col-span-2">
+                <AddressDisplay address={data.address} />
+              </div>
+              <div>
+                <SendForm onSend={handleSend} balance={data.balance} />
+              </div>
+            </div>
+
+            <div className="mt-8">
+              <TransactionList transactions={data.transactions} />
+            </div>
+          </>
+        ) : (
+          <div className="glass-panel p-8 rounded-3xl text-center">
+            <p className="text-white/50 mb-4">
+              Wallet is not ready yet. Sign in again to create it.
+            </p>
+            <Button onClick={() => router.push('/login')}>Sign in again</Button>
+          </div>
+        )}
       </div>
     </div>
   )

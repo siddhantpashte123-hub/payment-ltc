@@ -1,121 +1,149 @@
-import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
+import {
+  adminClient,
+  bearerToken,
+  generateDepositAddress,
+  getUserFromToken,
+} from '@/lib/api'
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
-
-async function getUserFromToken(accessToken: string) {
-  const res = await fetch(`${supabaseUrl}/auth/v1/user`, {
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-    },
-  })
-  if (!res.ok) return null
-  return res.json()
-}
 
 export async function GET(request: Request) {
   try {
-    const headers = await request.headers
-    const authHeader = headers.get('authorization')
-    if (!authHeader?.startsWith('Bearer ')) {
-      return NextResponse.json({ error: 'Missing token' }, { status: 401 })
+    const token = bearerToken(request)
+    if (!token) {
+      return NextResponse.json(
+        { error: 'Missing access token. Please sign in again.' },
+        { status: 401 }
+      )
     }
 
-    const accessToken = authHeader.split(' ')[1]
-    const user = await getUserFromToken(accessToken)
+    const user = await getUserFromToken(token)
     if (!user) {
-      return NextResponse.json({ error: 'Invalid token' }, { status: 401 })
+      return NextResponse.json(
+        { error: 'Session expired. Please sign in again.' },
+        { status: 401 }
+      )
     }
 
-    const supabase = createClient(supabaseUrl, serviceRoleKey)
+    const supabase = adminClient()
 
-    // Ensure profile exists
-    const { data: profile } = await supabase
+    // 1. Ensure profile
+    const { data: existingProfile, error: profileReadError } = await supabase
       .from('profiles')
-      .select('*')
+      .select('id')
       .eq('id', user.id)
-      .single()
+      .maybeSingle()
 
-    if (!profile) {
-      await supabase.from('profiles').insert({
-        id: user.id,
-        email: user.email,
-        full_name: user.user_metadata?.full_name || user.email,
-        avatar_url: user.user_metadata?.avatar_url,
-      })
+    if (profileReadError) {
+      return NextResponse.json(
+        {
+          error: `Database not ready: ${profileReadError.message}. Did you run supabase/schema.sql?`,
+        },
+        { status: 500 }
+      )
     }
 
-    // Ensure wallet exists with a unique LTC address
-    const { data: wallet } = await supabase
-      .from('wallets')
-      .select('*')
-      .eq('user_id', user.id)
-      .single()
+    if (!existingProfile) {
+      const { error: profileInsertError } = await supabase
+        .from('profiles')
+        .upsert(
+          {
+            id: user.id,
+            email: user.email ?? null,
+            full_name:
+              (user.user_metadata?.full_name as string) ??
+              (user.user_metadata?.name as string) ??
+              user.email ??
+              null,
+            avatar_url:
+              (user.user_metadata?.avatar_url as string) ??
+              (user.user_metadata?.picture as string) ??
+              null,
+          },
+          { onConflict: 'id' }
+        )
+      if (profileInsertError) {
+        return NextResponse.json(
+          { error: `Could not create profile: ${profileInsertError.message}` },
+          { status: 500 }
+        )
+      }
+    }
 
-    let ltcAddress: string
-    let balance = 0
+    // 2. Ensure wallet with unique LTC address
+    const { data: wallet, error: walletReadError } = await supabase
+      .from('wallets')
+      .select('id, ltc_address, balance_ltc')
+      .eq('user_id', user.id)
+      .maybeSingle()
+
+    if (walletReadError) {
+      return NextResponse.json(
+        { error: `Wallet lookup failed: ${walletReadError.message}` },
+        { status: 500 }
+      )
+    }
+
+    let address = wallet?.ltc_address ?? ''
+    let balance = Number(wallet?.balance_ltc ?? 0)
 
     if (!wallet) {
-      ltcAddress = generateDepositAddress(user.id)
-      const { data: newWallet } = await supabase
+      address = generateDepositAddress(user.id)
+      const { data: created, error: walletInsertError } = await supabase
         .from('wallets')
         .insert({
           user_id: user.id,
-          ltc_address: ltcAddress,
+          ltc_address: address,
           balance_ltc: 0,
         })
-        .select()
+        .select('ltc_address, balance_ltc')
         .single()
-      balance = newWallet?.balance_ltc ?? 0
-    } else {
-      ltcAddress = wallet.ltc_address
-      balance = wallet.balance_ltc ?? 0
+
+      if (walletInsertError) {
+        return NextResponse.json(
+          { error: `Could not create wallet: ${walletInsertError.message}` },
+          { status: 500 }
+        )
+      }
+      address = created.ltc_address
+      balance = Number(created.balance_ltc ?? 0)
     }
 
-    // Fetch transactions
-    const { data: transactions } = await supabase
+    // 3. Transactions
+    const { data: transactions, error: txError } = await supabase
       .from('transactions')
       .select('*')
       .eq('wallet_id', user.id)
       .order('created_at', { ascending: false })
       .limit(50)
 
+    if (txError) {
+      return NextResponse.json(
+        { error: `Transaction lookup failed: ${txError.message}` },
+        { status: 500 }
+      )
+    }
+
     return NextResponse.json({
-      address: ltcAddress,
-      balance: Number(balance) || 0,
-      transactions: transactions?.map((tx) => ({
-        id: tx.id,
-        type: tx.type,
-        amount: Number(tx.amount_ltc),
-        status: tx.status,
-        address: tx.counterparty_address,
-        created_at: tx.created_at,
-        tx_hash: tx.tx_hash,
-      })) || [],
+      address,
+      balance,
+      transactions:
+        transactions?.map((tx) => ({
+          id: tx.id,
+          type: tx.type,
+          amount: Math.abs(Number(tx.amount_ltc)),
+          status: tx.status,
+          address: tx.counterparty_address ?? '',
+          created_at: tx.created_at,
+          tx_hash: tx.tx_hash ?? undefined,
+        })) ?? [],
     })
   } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown error'
     console.error('Wallet API error:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    return NextResponse.json(
+      { error: `Server error: ${message}` },
+      { status: 500 }
+    )
   }
-}
-
-// Deterministic deposit address generator (LTC mainnet format: starts with L or M)
-// NOTE: In production, back these addresses with real private keys via an HD wallet
-// or a third-party address generation service.
-function generateDepositAddress(userId: string): string {
-  const chars =
-    'abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ123456789'
-  let hash = 0
-  for (let i = 0; i < userId.length; i++) {
-    hash = (hash << 5) - hash + userId.charCodeAt(i)
-    hash |= 0
-  }
-  let addr = (hash < 0 ? 'L' : 'M')
-  for (let i = 0; i < 32; i++) {
-    hash = (hash << 5) - hash + userId.charCodeAt(i % userId.length) + i
-    hash |= 0
-    addr += chars[Math.abs(hash) % chars.length]
-  }
-  return addr
 }
