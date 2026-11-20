@@ -33,6 +33,7 @@ create table if not exists public.transactions (
   status text check (status in ('completed', 'pending', 'failed')) default 'pending',
   counterparty_address text,
   counterparty_name text,
+  note text,
   tx_hash text unique,
   created_at timestamptz default now()
 );
@@ -43,6 +44,15 @@ create table if not exists public.saved_addresses (
   user_id uuid references public.profiles(id) not null,
   label text not null,
   address text not null,
+  created_at timestamptz default now()
+);
+
+-- Receive requests (invoices) - a user asks to receive a specific amount
+create table if not exists public.receive_requests (
+  id uuid default uuid_generate_v4() primary key,
+  user_id uuid references public.profiles(id) not null,
+  amount_ltc numeric(20, 8) not null,
+  note text,
   created_at timestamptz default now()
 );
 

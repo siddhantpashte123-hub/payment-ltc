@@ -7,12 +7,13 @@ import { Button } from '@/components/ui/button'
 import {
   ArrowUpRight,
   ArrowDownLeft,
-  Clock,
   ExternalLink,
   User,
   Search,
   Download,
   Inbox,
+  ChevronDown,
+  StickyNote,
 } from 'lucide-react'
 
 interface Transaction {
@@ -22,6 +23,7 @@ interface Transaction {
   status: 'completed' | 'pending' | 'failed'
   address: string
   name?: string
+  note?: string
   created_at: string
   tx_hash?: string
   explorer?: string
@@ -29,34 +31,56 @@ interface Transaction {
 
 interface TransactionListProps {
   transactions: Transaction[]
+  priceInr?: number
 }
 
 type FilterType = 'all' | 'deposit' | 'send'
+type SortType = 'newest' | 'oldest' | 'amount'
 
-export function TransactionList({ transactions }: TransactionListProps) {
+export function TransactionList({ transactions, priceInr }: TransactionListProps) {
   const router = useRouter()
   const [filter, setFilter] = useState<FilterType>('all')
   const [query, setQuery] = useState('')
+  const [sort, setSort] = useState<SortType>('newest')
+  const [visible, setVisible] = useState(10)
 
   const filtered = useMemo(() => {
-    return transactions.filter((tx) => {
+    let list = transactions.filter((tx) => {
       if (filter !== 'all' && tx.type !== filter) return false
       if (!query.trim()) return true
       const q = query.trim().toLowerCase()
       return (
         tx.name?.toLowerCase().includes(q) ||
         tx.address.toLowerCase().includes(q) ||
-        (tx.tx_hash || '').toLowerCase().includes(q)
+        (tx.tx_hash || '').toLowerCase().includes(q) ||
+        (tx.note || '').toLowerCase().includes(q)
       )
     })
-  }, [transactions, filter, query])
+
+    list = [...list].sort((a, b) => {
+      if (sort === 'newest') {
+        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      }
+      if (sort === 'oldest') {
+        return new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+      }
+      // amount
+      return b.amount - a.amount
+    })
+
+    return list
+  }, [transactions, filter, query, sort])
+
+  const shown = filtered.slice(0, visible)
 
   const exportCsv = () => {
     const header = [
       'Type',
       'Amount (LTC)',
+      'Amount (INR)',
       'Counterparty',
       'Address',
+      'Note',
       'Tx Hash',
       'Explorer',
       'Status',
@@ -65,8 +89,10 @@ export function TransactionList({ transactions }: TransactionListProps) {
     const rows = transactions.map((tx) => [
       tx.type,
       tx.amount.toFixed(8),
+      priceInr ? (tx.amount * priceInr).toFixed(2) : '',
       tx.name || '',
       tx.address,
+      tx.note || '',
       tx.tx_hash || '',
       tx.explorer || '',
       tx.status,
@@ -109,7 +135,7 @@ export function TransactionList({ transactions }: TransactionListProps) {
         )}
       </div>
 
-      {/* Filter + search */}
+      {/* Filter + search + sort */}
       {transactions.length > 0 && (
         <div className="flex flex-col sm:flex-row gap-3 mb-6">
           <div className="flex gap-2">
@@ -117,11 +143,12 @@ export function TransactionList({ transactions }: TransactionListProps) {
               <button
                 key={f}
                 onClick={() => setFilter(f)}
-                className={`px-4 py-2 rounded-lg text-xs font-medium transition-all capitalize ${
-                  filter === f
+                className={
+                  'px-4 py-2 rounded-lg text-xs font-medium transition-all capitalize ' +
+                  (filter === f
                     ? 'bg-white text-black'
-                    : 'bg-white/5 text-white/50 border border-white/10 hover:bg-white/10'
-                }`}
+                    : 'bg-white/5 text-white/50 border border-white/10 hover:bg-white/10')
+                }
               >
                 {f === 'all' ? 'All' : f === 'deposit' ? 'Deposits' : 'Withdrawals'}
               </button>
@@ -140,10 +167,25 @@ export function TransactionList({ transactions }: TransactionListProps) {
               className="w-full h-10 rounded-lg bg-white/5 border border-white/10 pl-9 pr-3 text-xs text-white placeholder-white/40 focus:outline-none focus:ring-1 focus:ring-white"
             />
           </div>
+          <div className="relative">
+            <select
+              value={sort}
+              onChange={(e) => setSort(e.target.value as SortType)}
+              className="h-10 rounded-lg bg-white/5 border border-white/10 pl-3 pr-8 text-xs text-white focus:outline-none focus:ring-1 focus:ring-white appearance-none"
+            >
+              <option value="newest">Newest</option>
+              <option value="oldest">Oldest</option>
+              <option value="amount">Highest amount</option>
+            </select>
+            <ChevronDown
+              size={14}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-white/40 pointer-events-none"
+            />
+          </div>
         </div>
       )}
 
-      {filtered.length === 0 ? (
+      {shown.length === 0 ? (
         <div className="p-12 text-center">
           <Inbox size={32} className="mx-auto mb-4 text-white/20" />
           <h3 className="text-white font-medium">
@@ -159,70 +201,93 @@ export function TransactionList({ transactions }: TransactionListProps) {
         </div>
       ) : (
         <div className="space-y-4">
-          {filtered.map((tx) => {
+          {shown.map((tx) => {
             const isDeposit = tx.type === 'deposit'
             return (
-            <button
-              key={tx.id}
-              onClick={() => router.push(`/dashboard/transactions/${tx.id}`)}
-              className="w-full flex items-center gap-4 border-b border-white/5 pb-5 last:border-0 last:pb-0 text-left transition-colors hover:bg-white/5 -mx-2 px-2 rounded-lg"
-            >
-              <div
-                className={
-                  'flex-shrink-0 w-11 h-11 rounded-xl flex items-center justify-center ' +
-                  (isDeposit
-                    ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-                    : 'bg-white/5 text-white/40 border border-white/10')
-                }
+              <button
+                key={tx.id}
+                onClick={() => router.push(`/dashboard/transactions/${tx.id}`)}
+                className="w-full flex items-center gap-4 border-b border-white/5 pb-5 last:border-0 last:pb-0 text-left transition-colors hover:bg-white/5 -mx-2 px-2 rounded-lg"
               >
-                {isDeposit ? <ArrowUpRight size={20} /> : <ArrowDownLeft size={20} />}
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-white truncate">
-                  {tx.type === 'deposit' ? 'Deposit received' : 'LTC sent'}
-                </p>
-                {/* Counterparty: name if present, else address */}
-                <p className="text-xs text-white/40 truncate flex items-center gap-1">
-                  <User size={11} className="flex-shrink-0" />
-                  {tx.name || tx.address || '—'}
-                </p>
-                <p className="text-xs text-white/40 mt-1">
-                  {new Date(tx.created_at).toLocaleString()}
-                </p>
-              </div>
-              <div className="flex flex-col items-end gap-1.5">
-                <span
+                <div
                   className={
-                    'font-mono text-sm font-bold ' +
-                    (tx.type === 'deposit' ? 'text-emerald-400' : 'text-white')
+                    'flex-shrink-0 w-11 h-11 rounded-xl flex items-center justify-center ' +
+                    (isDeposit
+                      ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                      : 'bg-white/5 text-white/40 border border-white/10')
                   }
                 >
-                  {tx.type === 'deposit' ? '+' : '−'}
-                  {tx.amount.toFixed(8)} LTC
-                </span>
-                <div className="flex items-center gap-2">
-                  <Badge
-                    variant={
-                      tx.status === 'completed'
-                        ? 'success'
-                        : tx.status === 'pending'
-                        ? 'pending'
-                        : 'failed'
+                  {isDeposit ? <ArrowUpRight size={20} /> : <ArrowDownLeft size={20} />}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-white truncate">
+                    {isDeposit ? 'Deposit received' : 'LTC sent'}
+                  </p>
+                  <p className="text-xs text-white/40 truncate flex items-center gap-1">
+                    <User size={11} className="flex-shrink-0" />
+                    {tx.name || tx.address || '—'}
+                  </p>
+                  {tx.note && (
+                    <p className="text-xs text-white/30 truncate flex items-center gap-1 mt-0.5">
+                      <StickyNote size={10} className="flex-shrink-0" />
+                      {tx.note}
+                    </p>
+                  )}
+                  <p className="text-xs text-white/40 mt-1">
+                    {new Date(tx.created_at).toLocaleString()}
+                  </p>
+                </div>
+                <div className="flex flex-col items-end gap-1.5">
+                  <span
+                    className={
+                      'font-mono text-sm font-bold ' +
+                      (isDeposit ? 'text-emerald-400' : 'text-white')
                     }
                   >
-                    {tx.status}
-                  </Badge>
-                  {tx.explorer && (
-                    <span className="inline-flex items-center gap-1 text-[10px] text-white/40">
-                      <ExternalLink size={11} />
-                      View
+                    {isDeposit ? '+' : '−'}
+                    {tx.amount.toFixed(8)} LTC
+                  </span>
+                  {priceInr !== undefined && (
+                    <span className="text-[10px] text-white/40">
+                      ≈ ₹{(tx.amount * priceInr).toLocaleString(undefined, { maximumFractionDigits: 2 })}
                     </span>
                   )}
+                  <div className="flex items-center gap-2">
+                    <Badge
+                      variant={
+                        tx.status === 'completed'
+                          ? 'success'
+                          : tx.status === 'pending'
+                          ? 'pending'
+                          : 'failed'
+                      }
+                    >
+                      {tx.status}
+                    </Badge>
+                    {tx.explorer && (
+                      <span className="inline-flex items-center gap-1 text-[10px] text-white/40">
+                        <ExternalLink size={11} />
+                        View
+                      </span>
+                    )}
+                  </div>
                 </div>
-              </div>
-            </button>
+              </button>
             )
           })}
+        </div>
+      )}
+
+      {/* Load more */}
+      {visible < filtered.length && (
+        <div className="mt-6 text-center">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setVisible((v) => v + 10)}
+          >
+            Load more ({filtered.length - visible} remaining)
+          </Button>
         </div>
       )}
     </div>

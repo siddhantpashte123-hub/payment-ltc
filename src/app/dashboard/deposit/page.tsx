@@ -13,6 +13,7 @@ import {
 import { Receipt } from '@/components/wallet/Receipt'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { useToast } from '@/components/ui/toast'
 import {
   ArrowDownLeft,
   AlertCircle,
@@ -20,6 +21,7 @@ import {
   Copy,
   Check,
   QrCode,
+  Share2,
 } from 'lucide-react'
 
 interface ReceiptData {
@@ -31,6 +33,7 @@ interface ReceiptData {
 export default function DepositPage() {
   const router = useRouter()
   const { data, loading, error, getAccessToken } = useWallet()
+  const { toast } = useToast()
 
   const [amount, setAmount] = useState('')
   const [address, setAddress] = useState('')
@@ -90,6 +93,17 @@ export default function DepositPage() {
     navigator.clipboard?.writeText(effectiveAddress)
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
+    toast('Address copied')
+  }
+
+  const shareAddress = () => {
+    const text = `Send Litecoin to my BlueWallet address: ${effectiveAddress}`
+    if (navigator.share) {
+      navigator.share({ title: 'BlueWallet', text }).catch(() => {})
+    } else {
+      navigator.clipboard?.writeText(text)
+      toast('Share text copied')
+    }
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -132,6 +146,7 @@ export default function DepositPage() {
         address: addr,
         explorer: payload.explorer || '',
       })
+      toast('Deposit submitted — waiting for confirmation')
     } catch {
       setFormError('Network error — deposit could not be submitted')
     } finally {
@@ -183,22 +198,31 @@ export default function DepositPage() {
                     fgColor="#000000"
                   />
                 </div>
-                <button
-                  onClick={copyAddress}
-                  className="mt-4 inline-flex items-center gap-2 text-xs text-white/50 hover:text-white transition-colors"
-                >
-                  {copied ? (
-                    <>
-                      <Check size={13} className="text-emerald-400" />
-                      Copied
-                    </>
-                  ) : (
-                    <>
-                      <Copy size={13} />
-                      Copy address
-                    </>
-                  )}
-                </button>
+                <div className="flex items-center justify-center gap-4 mt-4">
+                  <button
+                    onClick={copyAddress}
+                    className="inline-flex items-center gap-2 text-xs text-white/50 hover:text-white transition-colors"
+                  >
+                    {copied ? (
+                      <>
+                        <Check size={13} className="text-emerald-400" />
+                        Copied
+                      </>
+                    ) : (
+                      <>
+                        <Copy size={13} />
+                        Copy address
+                      </>
+                    )}
+                  </button>
+                  <button
+                    onClick={shareAddress}
+                    className="inline-flex items-center gap-2 text-xs text-white/50 hover:text-white transition-colors"
+                  >
+                    <Share2 size={13} />
+                    Share
+                  </button>
+                </div>
               </div>
             </div>
           )}

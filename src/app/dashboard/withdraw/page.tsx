@@ -12,6 +12,7 @@ import {
 import { Receipt } from '@/components/wallet/Receipt'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { useToast } from '@/components/ui/toast'
 import {
   User,
   AlertCircle,
@@ -21,6 +22,7 @@ import {
   X,
   BookUser,
   Check,
+  StickyNote,
 } from 'lucide-react'
 
 interface SavedAddress {
@@ -39,9 +41,11 @@ interface ReceiptData {
 export default function WithdrawPage() {
   const router = useRouter()
   const { data, loading, error, getAccessToken } = useWallet()
+  const { toast } = useToast()
 
   const [to, setTo] = useState('')
   const [name, setName] = useState('')
+  const [note, setNote] = useState('')
   const [amount, setAmount] = useState('')
   const [formError, setFormError] = useState('')
   const [submitting, setSubmitting] = useState(false)
@@ -160,6 +164,7 @@ export default function WithdrawPage() {
           to: to.trim(),
           amount: amt,
           name: name.trim() || undefined,
+          note: note.trim() || undefined,
         }),
       })
       const payload = await res.json().catch(() => ({}))
@@ -176,6 +181,7 @@ export default function WithdrawPage() {
         txHash: payload.txid || '',
         explorer: payload.explorer || '',
       })
+      toast(`${amt.toFixed(8)} LTC sent successfully`)
     } catch {
       setFormError('Network error — withdrawal could not be submitted')
       setConfirmOpen(false)
@@ -313,6 +319,24 @@ export default function WithdrawPage() {
                     onChange={(e) => setName(e.target.value)}
                     className="pl-10"
                     maxLength={60}
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-white/50 mb-1.5">
+                  Note (optional)
+                </label>
+                <div className="relative">
+                  <StickyNote
+                    size={16}
+                    className="absolute left-3.5 top-1/2 -translate-y-1/2 text-white/40"
+                  />
+                  <Input
+                    placeholder="e.g. Payment for services..."
+                    value={note}
+                    onChange={(e) => setNote(e.target.value)}
+                    className="pl-10"
+                    maxLength={200}
                   />
                 </div>
               </div>
