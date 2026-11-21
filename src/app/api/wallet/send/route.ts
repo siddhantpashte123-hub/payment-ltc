@@ -4,6 +4,7 @@ import {
   decryptKey,
   sendLtc,
   explorerTxUrl,
+  estimateConfirmationTime,
 } from '@/lib/blockchain'
 
 export async function POST(request: Request) {
@@ -87,6 +88,8 @@ export async function POST(request: Request) {
     const wif = decryptKey(wallet.priv_key_encrypted)
     let txid: string
     let sentAmount = amount
+    let feeLitoshi = 0
+    let feeLtc = 0
     try {
       const result = await sendLtc({
         to,
@@ -95,6 +98,8 @@ export async function POST(request: Request) {
         changeAddress: wallet.ltc_address,
       })
       txid = result.txid
+      feeLitoshi = result.fee
+      feeLtc = result.fee / 100_000_000
       // When the full balance is sent, sendLtc auto-reduces the amount by
       // the fee — use the actual amount for the debit and the record.
       if (result.amount !== amount) {
@@ -133,6 +138,9 @@ export async function POST(request: Request) {
       counterparty_name: name,
       note,
       tx_hash: txid,
+      confirmations: 0,
+      fee_ltc: feeLtc,
+      estimated_time: estimateConfirmationTime(0, feeLitoshi),
       created_at: now,
     })
     if (insertError) {

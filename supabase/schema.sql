@@ -35,8 +35,19 @@ create table if not exists public.transactions (
   counterparty_name text,
   note text,
   tx_hash text unique,
+  -- On-chain details (populated during wallet sync from SoChain)
+  confirmations integer,
+  block_height integer,
+  fee_ltc numeric(20, 8),
+  estimated_time text,
   created_at timestamptz default now()
 );
+
+-- Migration: add on-chain detail columns to existing DBs (idempotent).
+alter table public.transactions add column if not exists confirmations integer;
+alter table public.transactions add column if not exists block_height integer;
+alter table public.transactions add column if not exists fee_ltc numeric(20, 8);
+alter table public.transactions add column if not exists estimated_time text;
 
 -- Saved addresses (whitelist) - quick-select recipients on withdraw
 create table if not exists public.saved_addresses (

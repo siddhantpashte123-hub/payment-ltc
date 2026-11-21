@@ -207,15 +207,77 @@ export async function getRecentTxs(address: string): Promise<RecentTx[]> {
 }
 
 /**
- * Full transaction detail (inputs/outputs) for a tx hash. Used to find the
- * sender (counterparty) address for a deposit.
+ * Full transaction detail (inputs/outputs + block + fee) for a tx hash.
+ * Used to find the sender (counterparty) address for a deposit and to read
+ * on-chain confirmation details.
  */
 export async function getTxDetail(txid: string) {
   const data = await sochainGetWithRetry<{
     inputs?: Array<{ address?: string; value?: string }>
     outputs?: Array<{ address?: string; value?: string }>
+    block?: number | null
+    fee?: string
   }>(`transaction/${NETWORK}/${txid}`)
   return data
+}
+
+export interface TxOnChainDetail {
+  confirmations: number
+  blockHeight: number | null
+  feeLitoshi: number
+  feeLtc: number
+  status: 'confirmed' | 'pending'
+}
+
+/**
+ * On-chain detail for a tx hash: confirmations, block height, and the fee.
+ * Confirmations are computed from the network block count vs the tx's block.
+ * If the tx has not been included in a block yet, returns status 'pending'.
+ */
+export async function getTxOnChainDetail(txid: string): Promise<TxOnChainDetail> {
+  const blockCount = await getBlockCount()
+  const detail = await getTxDetail(txid)
+  const blockHeight = detail?.block != null ? Number(detail.block) : null
+  const confirmations =
+    blockHeight != null ? Math.max(0, blockCount - blockHeight) : 0
+  // SoChain tx detail exposes the fee in litoshi (fee field).
+  const feeLitoshi = Math.max(0, Number(detail?.fee ?? 0))
+  return {
+    confirmations,
+    blockHeight,
+    feeLitoshi,
+    feeLtc: feeLitoshi / LITOSHI_PER_LTC,
+    status: confirmations > 0 ? 'confirmed' : 'pending',
+  }
+}
+
+/**
+ * Estimated confirmation time (human readable) for a transaction.
+ * Litecoin's average block time is ~2.5 minutes. With the app's low default
+ * fee (~2 litoshi/byte) a typical tx confirms in roughly 30-60 minutes;
+ * higher-fee txs are faster.
+ */
+export function estimateConfirmationTime(
+  confirmations: number,
+  feeLitoshi: number,
+  txSize = 380
+): string {
+  if (confirmations > 0) {
+    // Already confirmed — estimate how long it took (blocks * ~2.5 min).
+    const mins = Math.round(confirmations * 2.5)
+    if (mins < 60) return `Confirmed in ~${mins} min`
+    return `Confirmed in ~${Math.round(mins / 60)} hr`
+  }
+  // Pending: estimate blocks to wait based on fee rate (litoshi/byte).
+  const feeRate = txSize > 0 ? feeLitoshi / txSize : 2
+  let blocks: number
+  if (feeRate >= 10) blocks = 2 // high fee
+  else if (feeRate >= 5) blocks = 4
+  else if (feeRate >= 3) blocks = 8
+  else blocks = 16 // low fee (our default ~2 litoshi/byte)
+  const mins = Math.round(blocks * 2.5)
+  if (mins < 60) return `~${mins} min`
+  return `~${Math.round((mins / 60) * 10) / 10} hr`
 }
 
 /**

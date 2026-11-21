@@ -21,6 +21,10 @@ import {
   AlertCircle,
   Loader2,
   StickyNote,
+  Layers,
+  Hash,
+  Gauge,
+  Zap,
 } from 'lucide-react'
 
 interface TxDetail {
@@ -34,6 +38,12 @@ interface TxDetail {
   created_at: string
   tx_hash?: string
   explorer?: string
+  confirmations?: number
+  block_height?: number | null
+  fee_ltc?: number
+  fee_litoshi?: number
+  estimated_time?: string
+  onchain_status?: 'confirmed' | 'pending' | null
 }
 
 export default function TransactionDetailPage() {
@@ -58,22 +68,23 @@ export default function TransactionDetailPage() {
         return
       }
       try {
-        const res = await fetch('/api/wallet', {
+        // Dedicated endpoint returns the tx with live on-chain detail.
+        const res = await fetch(`/api/wallet/transaction/${txId}`, {
           headers: { Authorization: `Bearer ${token}` },
           cache: 'no-store',
         })
-        if (!res.ok) throw new Error('Wallet load failed')
-        const wallet = await res.json()
-        const found = (wallet.transactions || []).find((t: TxDetail) => t.id === txId)
-        if (mounted) {
-          if (found) {
-            setTx(found)
-          } else {
-            setError('Transaction not found in your history.')
-          }
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}))
+          throw new Error(err.error || 'Transaction load failed')
         }
-      } catch {
-        if (mounted) setError('Could not load transaction details.')
+        const found: TxDetail = await res.json()
+        if (mounted) setTx(found)
+      } catch (e) {
+        if (mounted) {
+          setError(
+            e instanceof Error ? e.message : 'Could not load transaction details.'
+          )
+        }
       } finally {
         if (mounted) setLoading(false)
       }
@@ -151,6 +162,15 @@ export default function TransactionDetailPage() {
                 >
                   {tx.status}
                 </Badge>
+                {tx.confirmations != null && (
+                  <Badge
+                    variant={tx.confirmations > 0 ? 'success' : 'pending'}
+                    className="capitalize"
+                  >
+                    {tx.confirmations} confirmation
+                    {tx.confirmations === 1 ? '' : 's'}
+                  </Badge>
+                )}
                 <span className="text-xs text-white/40 flex items-center gap-1">
                   <Clock size={12} />
                   {new Date(tx.created_at).toLocaleString()}
@@ -158,6 +178,44 @@ export default function TransactionDetailPage() {
               </div>
             </div>
           </div>
+
+          {/* On-chain status hero */}
+          {tx.estimated_time && (
+            <div
+              className={`mb-6 rounded-2xl border px-5 py-4 flex items-center gap-3 ${
+                tx.confirmations && tx.confirmations > 0
+                  ? 'bg-emerald-500/10 border-emerald-500/20'
+                  : 'bg-amber-500/10 border-amber-500/20'
+              }`}
+            >
+              {tx.confirmations && tx.confirmations > 0 ? (
+                <CheckCircle2 size={20} className="text-emerald-400 flex-shrink-0" />
+              ) : (
+                <Loader2
+                  size={20}
+                  className="text-amber-400 flex-shrink-0 animate-spin"
+                />
+              )}
+              <div>
+                <p
+                  className={`text-sm font-medium ${
+                    tx.confirmations && tx.confirmations > 0
+                      ? 'text-emerald-300'
+                      : 'text-amber-300'
+                  }`}
+                >
+                  {tx.confirmations && tx.confirmations > 0
+                    ? 'Confirmed on-chain'
+                    : 'Waiting for confirmations'}
+                </p>
+                <p className="text-xs text-white/50 mt-0.5">
+                  {tx.confirmations != null
+                    ? `${tx.confirmations} confirmation${tx.confirmations === 1 ? '' : 's'} · ${tx.estimated_time}`
+                    : tx.estimated_time}
+                </p>
+              </div>
+            </div>
+          )}
 
           {/* Details */}
           <div className="glass-panel p-6 md:p-8 space-y-4">
@@ -190,6 +248,37 @@ export default function TransactionDetailPage() {
                 </span>
               </DetailRow>
             )}
+
+            {/* On-chain detail rows */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 pt-1">
+              <DetailRow label="Confirmations">
+                <span className="inline-flex items-center gap-1.5 text-sm text-white font-medium">
+                  <Layers size={14} className="text-emerald-400" />
+                  {tx.confirmations != null ? tx.confirmations : '—'}
+                </span>
+              </DetailRow>
+              <DetailRow label="Block Height">
+                <span className="inline-flex items-center gap-1.5 text-sm text-white/70 font-mono">
+                  <Hash size={14} className="text-white/40" />
+                  {tx.block_height != null ? tx.block_height : '—'}
+                </span>
+              </DetailRow>
+              <DetailRow label="Network Fee">
+                <span className="inline-flex items-center gap-1.5 text-sm text-white/70">
+                  <Zap size={14} className="text-amber-400" />
+                  {tx.fee_ltc != null
+                    ? `${tx.fee_ltc} LTC (${tx.fee_litoshi ?? Math.round(tx.fee_ltc * 1e8)} litoshi)`
+                    : '—'}
+                </span>
+              </DetailRow>
+              <DetailRow label="Est. Confirmation">
+                <span className="inline-flex items-center gap-1.5 text-sm text-white/70">
+                  <Gauge size={14} className="text-sky-400" />
+                  {tx.estimated_time ?? '—'}
+                </span>
+              </DetailRow>
+            </div>
+
             {priceInr !== undefined && (
               <DetailRow label="Value (INR)">
                 <span className="font-semibold text-white">
@@ -226,7 +315,7 @@ export default function TransactionDetailPage() {
                 </p>
               </div>
             )}
-            {tx.status === 'completed' && (
+            {tx.status === 'completed' && tx.confirmations && tx.confirmations > 0 && (
               <div className="flex items-center gap-2 text-xs text-emerald-400">
                 <CheckCircle2 size={14} />
                 Transaction confirmed on-chain
