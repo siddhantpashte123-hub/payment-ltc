@@ -210,12 +210,16 @@ export async function getRecentTxs(address: string): Promise<RecentTx[]> {
  * Full transaction detail (inputs/outputs + block + fee) for a tx hash.
  * Used to find the sender (counterparty) address for a deposit and to read
  * on-chain confirmation details.
+ *
+ * SoChain v3 fields (verified): `confirmations` (count), `block_height`
+ * (block number), `fee` (in LTC, not litoshi).
  */
 export async function getTxDetail(txid: string) {
   const data = await sochainGetWithRetry<{
     inputs?: Array<{ address?: string; value?: string }>
     outputs?: Array<{ address?: string; value?: string }>
-    block?: number | null
+    confirmations?: number
+    block_height?: number | null
     fee?: string
   }>(`transaction/${NETWORK}/${txid}`)
   return data
@@ -231,22 +235,38 @@ export interface TxOnChainDetail {
 
 /**
  * On-chain detail for a tx hash: confirmations, block height, and the fee.
- * Confirmations are computed from the network block count vs the tx's block.
- * If the tx has not been included in a block yet, returns status 'pending'.
+ * SoChain v3 returns `confirmations` directly, `block_height`, and `fee` in
+ * LTC. We use the directly-returned confirmations (falling back to computing
+ * from block height if absent). If the tx has not been included in a block yet,
+ * confirmations is 0 and status is 'pending'.
  */
 export async function getTxOnChainDetail(txid: string): Promise<TxOnChainDetail> {
-  const blockCount = await getBlockCount()
   const detail = await getTxDetail(txid)
-  const blockHeight = detail?.block != null ? Number(detail.block) : null
-  const confirmations =
-    blockHeight != null ? Math.max(0, blockCount - blockHeight) : 0
-  // SoChain tx detail exposes the fee in litoshi (fee field).
-  const feeLitoshi = Math.max(0, Number(detail?.fee ?? 0))
+  const blockHeight =
+    detail?.block_height != null ? Number(detail.block_height) : null
+
+  // Prefer the confirmations SoChain returns directly; fall back to computing
+  // it from the network block count vs the tx's block height.
+  let confirmations = detail?.confirmations
+  if (confirmations == null || !isFinite(confirmations)) {
+    if (blockHeight != null) {
+      const blockCount = await getBlockCount()
+      confirmations = Math.max(0, blockCount - blockHeight)
+    } else {
+      confirmations = 0
+    }
+  }
+  confirmations = Math.max(0, confirmations)
+
+  // SoChain returns the fee in LTC — convert to litoshi for display.
+  const feeLtc = Math.max(0, Number(detail?.fee ?? 0))
+  const feeLitoshi = Math.round(feeLtc * LITOSHI_PER_LTC)
+
   return {
     confirmations,
     blockHeight,
     feeLitoshi,
-    feeLtc: feeLitoshi / LITOSHI_PER_LTC,
+    feeLtc,
     status: confirmations > 0 ? 'confirmed' : 'pending',
   }
 }
