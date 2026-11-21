@@ -114,11 +114,17 @@ export async function getAddressBalance(address: string): Promise<number> {
  * Unspent outputs for building a send transaction.
  * SoChain v3 paginates unspent_outputs (10 per page) — follows pages until a
  * short page is returned. Only confirmed outputs (block != null) are returned.
+ *
+ * NOTE: bitcore-lib-litecoin's runtime UnspentOutput constructor reads
+ * `outputIndex` (or `vout`); `outputNo` throws
+ * "Invalid outputIndex, received undefined". The library's TS types, however,
+ * declare `outputNo` — so both fields are provided to satisfy runtime + types.
  */
 export async function getUnspent(address: string) {
   const blockCount = await getBlockCount()
   const utxos: Array<{
     txId: string
+    outputIndex: number
     outputNo: number
     script: Buffer
     satoshis: number
@@ -144,6 +150,7 @@ export async function getUnspent(address: string) {
       if (o.block == null) continue
       utxos.push({
         txId: o.hash,
+        outputIndex: o.index,
         outputNo: o.index,
         script: Buffer.from(o.script, 'hex'),
         satoshis: Math.floor(parseFloat(o.value) * LITOSHI_PER_LTC),
@@ -235,12 +242,18 @@ export async function broadcastTx(txHex: string): Promise<string> {
 export interface SendResult {
   txid: string
   fee: number
+  /** Actual amount sent (auto-reduced by fee when sending the full balance). */
+  amount: number
 }
 
 /**
  * Build, sign, and broadcast a real Litecoin transaction.
  * Selects UTXOs, pays a modest fee, returns change to the sender address.
  * Broadcast is done via Blockchair (SoChain v3 does not broadcast).
+ *
+ * If the requested amount leaves no room for the fee (e.g. the user sent the
+ * entire balance), the amount is automatically reduced by the fee so the
+ * transaction can still be broadcast — "send all" works out of the box.
  */
 export async function sendLtc(params: {
   to: string
@@ -249,7 +262,7 @@ export async function sendLtc(params: {
   changeAddress: string
 }): Promise<SendResult> {
   const { to, amount, wif, changeAddress } = params
-  const satoshis = Math.floor(amount * LITOSHI_PER_LTC)
+  let satoshis = Math.floor(amount * LITOSHI_PER_LTC)
 
   const utxos = await getUnspent(changeAddress)
   const totalInput = utxos.reduce((s, u) => s + u.satoshis, 0)
@@ -258,7 +271,19 @@ export async function sendLtc(params: {
   const approxSize = utxos.length * 148 + 2 * 34 + 10
   const fee = Math.max(1000, approxSize * 5)
 
-  if (totalInput < satoshis + fee) {
+  // Auto-reduce the amount if the requested amount + fee exceeds the funds.
+  // This makes "send the full balance" work: fee is deducted from the amount.
+  let actualSatoshis = satoshis
+  if (satoshis + fee > totalInput) {
+    if (totalInput <= fee) {
+      throw new Error(
+        'Insufficient confirmed on-chain balance to cover the fee'
+      )
+    }
+    actualSatoshis = totalInput - fee
+  }
+
+  if (totalInput < actualSatoshis + fee) {
     throw new Error(
       'Insufficient confirmed on-chain balance to cover amount + fee'
     )
@@ -267,10 +292,10 @@ export async function sendLtc(params: {
   const priv = new PrivateKey(wif)
   const tx = new Transaction()
   tx.from(utxos)
-  tx.to(to, satoshis)
+  tx.to(to, actualSatoshis)
 
   // Only add a change output if there's a remainder.
-  if (totalInput - satoshis - fee > 0) {
+  if (totalInput - actualSatoshis - fee > 0) {
     tx.change(changeAddress)
   }
   tx.fee(fee)
@@ -278,7 +303,7 @@ export async function sendLtc(params: {
 
   const txHex = tx.serialize()
   const txid = await broadcastTx(txHex)
-  return { txid, fee }
+  return { txid, fee, amount: actualSatoshis / LITOSHI_PER_LTC }
 }
 
 // ---------------- Explorer URLs ----------------

@@ -86,6 +86,7 @@ export async function POST(request: Request) {
     // Decrypt private key and broadcast a real LTC transaction.
     const wif = decryptKey(wallet.priv_key_encrypted)
     let txid: string
+    let sentAmount = amount
     try {
       const result = await sendLtc({
         to,
@@ -94,6 +95,11 @@ export async function POST(request: Request) {
         changeAddress: wallet.ltc_address,
       })
       txid = result.txid
+      // When the full balance is sent, sendLtc auto-reduces the amount by
+      // the fee — use the actual amount for the debit and the record.
+      if (result.amount !== amount) {
+        sentAmount = result.amount
+      }
     } catch (sendErr) {
       const msg = sendErr instanceof Error ? sendErr.message : 'Send failed'
       return NextResponse.json(
@@ -102,7 +108,7 @@ export async function POST(request: Request) {
       )
     }
 
-    const newBalance = balance - amount
+    const newBalance = balance - sentAmount
     const now = new Date().toISOString()
 
     // Deduct balance.
@@ -121,7 +127,7 @@ export async function POST(request: Request) {
     const { error: insertError } = await supabase.from('transactions').insert({
       wallet_id: user.id,
       type: 'send',
-      amount_ltc: -amount,
+      amount_ltc: -sentAmount,
       status: 'completed',
       counterparty_address: to,
       counterparty_name: name,
@@ -139,9 +145,10 @@ export async function POST(request: Request) {
     return NextResponse.json({
       success: true,
       newBalance,
+      sentAmount,
       txid,
       explorer: explorerTxUrl(txid),
-      message: `Sent ${amount} LTC to ${to}`,
+      message: `Sent ${sentAmount} LTC to ${to}`,
     })
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error'
