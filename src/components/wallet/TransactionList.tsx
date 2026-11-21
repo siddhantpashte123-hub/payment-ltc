@@ -116,10 +116,10 @@ export function TransactionList({ transactions, priceInr }: TransactionListProps
   }
 
   return (
-    <div className="glass-panel p-6 md:p-8">
+    <div className="premium-card p-6 md:p-8">
       {/* Header with export */}
       <div className="flex items-center justify-between mb-6 gap-4 flex-wrap">
-        <h3 className="text-sm font-semibold text-white uppercase tracking-wider">
+        <h3 className="text-sm font-semibold gradient-text uppercase tracking-wider">
           Transaction History
         </h3>
         {transactions.length > 0 && (
@@ -187,7 +187,9 @@ export function TransactionList({ transactions, priceInr }: TransactionListProps
 
       {shown.length === 0 ? (
         <div className="p-12 text-center">
-          <Inbox size={32} className="mx-auto mb-4 text-white/20" />
+          <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center">
+            <Inbox size={28} className="text-white/30" />
+          </div>
           <h3 className="text-white font-medium">
             {transactions.length === 0
               ? 'No transactions yet'
@@ -211,10 +213,10 @@ export function TransactionList({ transactions, priceInr }: TransactionListProps
               >
                 <div
                   className={
-                    'flex-shrink-0 w-11 h-11 rounded-xl flex items-center justify-center ' +
+                    'flex-shrink-0 w-11 h-11 rounded-xl flex items-center justify-center shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] ' +
                     (isDeposit
                       ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-                      : 'bg-white/5 text-white/40 border border-white/10')
+                      : 'bg-white/5 text-white/50 border border-white/10')
                   }
                 >
                   {isDeposit ? <ArrowUpRight size={20} /> : <ArrowDownLeft size={20} />}

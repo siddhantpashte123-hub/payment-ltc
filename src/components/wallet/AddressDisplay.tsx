@@ -14,11 +14,11 @@ export function AddressDisplay({ address, explorerAddress }: AddressDisplayProps
     address.slice(0, 8) + '...' + address.slice(address.length - 6)
 
   return (
-    <div className="glass-panel p-6">
+    <div className="premium-card p-6">
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
           <ShieldCheck size={18} className="text-emerald-400" />
-          <h3 className="text-sm font-semibold text-white uppercase tracking-wider">
+          <h3 className="text-sm font-semibold gradient-text uppercase tracking-wider">
             Your LTC Deposit Address
           </h3>
         </div>

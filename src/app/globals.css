@@ -177,3 +177,84 @@ body {
 .animate-pop {
   animation: pop-in 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
+
+/* ---------- Premium dashboard ---------- */
+/* Ambient background: soft radial glows over a faint grid + vignette */
+.premium-bg {
+  position: relative;
+  isolation: isolate;
+}
+.premium-bg::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -2;
+  background:
+    radial-gradient(60% 50% at 15% 0%, rgba(16, 185, 129, 0.10), transparent 70%),
+    radial-gradient(50% 45% at 100% 10%, rgba(56, 189, 248, 0.08), transparent 70%),
+    radial-gradient(60% 60% at 50% 100%, rgba(168, 85, 247, 0.06), transparent 70%);
+  pointer-events: none;
+}
+.premium-bg::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background:
+    linear-gradient(rgba(255,255,255,0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,0.025) 1px, transparent 1px);
+  background-size: 52px 52px;
+  -webkit-mask-image: radial-gradient(circle at 50% 30%, black, transparent 80%);
+  mask-image: radial-gradient(circle at 50% 30%, black, transparent 80%);
+  pointer-events: none;
+}
+
+/* Premium card: gradient hairline border + soft inner glow */
+.premium-card {
+  position: relative;
+  border-radius: 1.5rem;
+  background: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.015));
+  border: 1px solid rgba(255,255,255,0.08);
+  backdrop-filter: blur(20px);
+  box-shadow: 0 24px 60px -32px rgba(0,0,0,0.9), inset 0 1px 0 rgba(255,255,255,0.06);
+}
+.premium-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(140deg, rgba(255,255,255,0.22), rgba(255,255,255,0.02) 40%, rgba(52,211,153,0.18));
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+}
+
+/* Animated gradient text */
+.gradient-text {
+  background: linear-gradient(90deg, #ffffff, #a7f3d0 40%, #34d399 60%, #ffffff);
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: gradient-x 6s ease infinite;
+}
+
+/* Soft glow blob behind hero balance */
+.glow-orb {
+  position: absolute;
+  border-radius: 9999px;
+  filter: blur(60px);
+  pointer-events: none;
+}
+
+/* Reveal on load for premium feel */
+.reveal-up {
+  opacity: 0;
+  transform: translateY(24px);
+  animation: reveal-up 0.7s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+}
+@keyframes reveal-up {
+  to { opacity: 1; transform: translateY(0); }
+}
