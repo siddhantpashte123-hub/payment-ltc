@@ -14,6 +14,7 @@ import {
   Inbox,
   ChevronDown,
   StickyNote,
+  Layers,
 } from 'lucide-react'
 
 interface Transaction {
@@ -27,6 +28,7 @@ interface Transaction {
   created_at: string
   tx_hash?: string
   explorer?: string
+  confirmations?: number
 }
 
 interface TransactionListProps {
@@ -266,6 +268,12 @@ export function TransactionList({ transactions, priceInr }: TransactionListProps
                     >
                       {tx.status}
                     </Badge>
+                    {tx.confirmations != null && tx.confirmations > 0 && (
+                      <span className="inline-flex items-center gap-1 text-[10px] text-emerald-400/80">
+                        <Layers size={11} />
+                        {tx.confirmations} conf
+                      </span>
+                    )}
                     {tx.explorer && (
                       <span className="inline-flex items-center gap-1 text-[10px] text-white/40">
                         <ExternalLink size={11} />

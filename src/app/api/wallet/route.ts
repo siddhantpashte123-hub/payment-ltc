@@ -133,87 +133,104 @@ export async function GET(request: Request) {
     //    the source of truth — if it exceeds the stored balance, the difference
     //    is a deposit that was missed (rate-limited sync, failed detection,
     //    etc.). Credit it so no confirmed incoming payment is ever lost.
-    try {
-      const onchainBalance = await getAddressBalance(address)
-      const txs = await getRecentTxs(address)
+    //
+    //    SPEED: SoChain calls are slow, so we only sync on-chain when the
+    //    wallet hasn't been checked in the last ~2 minutes. This keeps the
+    //    dashboard fast — most loads serve the stored balance + transactions
+    //    instantly and skip the external calls.
+    const lastChecked = wallet?.last_checked_at
+      ? new Date(wallet.last_checked_at).getTime()
+      : 0
+    const isStale = Date.now() - lastChecked > 2 * 60 * 1000
 
-      // Credit deposits that are not yet recorded (match on tx_hash).
-      // SoChain v3 lists transactions with value_received / value_sent: a tx
-      // with value_received > 0 paid into our address.
-      for (const tx of txs) {
-        if (tx.value_received <= 0 || tx.confirmations <= 0) continue
+    if (isStale) {
+      try {
+        const onchainBalance = await getAddressBalance(address)
+        const txs = await getRecentTxs(address)
 
-        // Skip if already recorded.
-        const { data: existing } = await supabase
-          .from('transactions')
-          .select('id')
-          .eq('tx_hash', tx.txid)
-          .maybeSingle()
-        if (existing) continue
+        // Credit deposits that are not yet recorded (match on tx_hash).
+        // SoChain v3 lists transactions with value_received / value_sent: a tx
+        // with value_received > 0 paid into our address.
+        for (const tx of txs) {
+          if (tx.value_received <= 0 || tx.confirmations <= 0) continue
 
-        const amount = tx.value_received
-        if (amount <= 0) continue
+          // Skip if already recorded.
+          const { data: existing } = await supabase
+            .from('transactions')
+            .select('id')
+            .eq('tx_hash', tx.txid)
+            .maybeSingle()
+          if (existing) continue
 
-        // Best-effort counterparty (sender address) from tx detail.
-        let counterparty: string | null = null
-        try {
-          const detail = await getTxDetail(tx.txid)
-          counterparty = detail?.inputs?.[0]?.address ?? null
-        } catch {
-          // Non-fatal — counterparty is informational only.
-        }
+          const amount = tx.value_received
+          if (amount <= 0) continue
 
-        await supabase.from('transactions').insert({
-          wallet_id: user.id,
-          type: 'deposit',
-          amount_ltc: amount,
-          status: 'completed',
-          counterparty_address: counterparty,
-          tx_hash: tx.txid,
-        })
-        balance += amount
-      }
-
-      // Safety net: if the on-chain confirmed balance is higher than the
-      // stored balance, credit the difference. This catches deposits whose
-      // individual tx rows were never recorded (API failures, missed syncs).
-      if (onchainBalance > balance + 1e-12) {
-        const missed = onchainBalance - balance
-        await supabase.from('transactions').insert({
-          wallet_id: user.id,
-          type: 'deposit',
-          amount_ltc: missed,
-          status: 'completed',
-          counterparty_address: address,
-          tx_hash: null,
-        })
-        // Mark any pending deposit rows matching the credited amount as
-        // completed so the UI reflects the confirmed deposit.
-        const { data: pendingTxs } = await supabase
-          .from('transactions')
-          .select('id, amount_ltc')
-          .eq('wallet_id', user.id)
-          .eq('type', 'deposit')
-          .eq('status', 'pending')
-        for (const p of pendingTxs || []) {
-          if (Math.abs(Number(p.amount_ltc) - missed) < 1e-8) {
-            await supabase
-              .from('transactions')
-              .update({ status: 'completed' })
-              .eq('id', p.id)
+          // Best-effort counterparty (sender address) from tx detail.
+          let counterparty: string | null = null
+          try {
+            const detail = await getTxDetail(tx.txid)
+            counterparty = detail?.inputs?.[0]?.address ?? null
+          } catch {
+            // Non-fatal — counterparty is informational only.
           }
-        }
-        balance = onchainBalance
-      }
 
-      // Update balance + last checked.
-      await supabase
-        .from('wallets')
-        .update({ balance_ltc: balance, last_checked_at: new Date().toISOString() })
-        .eq('user_id', user.id)
-    } catch (syncErr) {
-      // Deposit sync is best-effort; don't fail the whole request.
-      console.error('Deposit sync error:', syncErr)
+          await supabase.from('transactions').insert({
+            wallet_id: user.id,
+            type: 'deposit',
+            amount_ltc: amount,
+            status: 'completed',
+            counterparty_address: counterparty,
+            tx_hash: tx.txid,
+            confirmations: tx.confirmations,
+            block_height: tx.block ?? null,
+          })
+          balance += amount
+        }
+
+        // Safety net: if the on-chain confirmed balance is higher than the
+        // stored balance, credit the difference. This catches deposits whose
+        // individual tx rows were never recorded (API failures, missed syncs).
+        if (onchainBalance > balance + 1e-12) {
+          const missed = onchainBalance - balance
+          await supabase.from('transactions').insert({
+            wallet_id: user.id,
+            type: 'deposit',
+            amount_ltc: missed,
+            status: 'completed',
+            counterparty_address: address,
+            tx_hash: null,
+          })
+          // Mark any pending deposit rows matching the credited amount as
+          // completed so the UI reflects the confirmed deposit.
+          const { data: pendingTxs } = await supabase
+            .from('transactions')
+            .select('id, amount_ltc')
+            .eq('wallet_id', user.id)
+            .eq('type', 'deposit')
+            .eq('status', 'pending')
+          for (const p of pendingTxs || []) {
+            if (Math.abs(Number(p.amount_ltc) - missed) < 1e-8) {
+              await supabase
+                .from('transactions')
+                .update({ status: 'completed' })
+                .eq('id', p.id)
+            }
+          }
+          balance = onchainBalance
+        }
+
+        // Update balance + last checked.
+        await supabase
+          .from('wallets')
+          .update({ balance_ltc: balance, last_checked_at: new Date().toISOString() })
+          .eq('user_id', user.id)
+      } catch (syncErr) {
+        // Deposit sync is best-effort; don't fail the whole request.
+        console.error('Deposit sync error:', syncErr)
+      }
+    } else {
+      // Fresh cached balance — no on-chain calls needed.
+      balance = Number(wallet?.balance_ltc ?? 0)
     }
 
     // 4. Transactions (with explorer URLs)
@@ -242,6 +259,7 @@ export async function GET(request: Request) {
       address,
       balance,
       explorerAddress: explorerAddressUrl(address),
+      lastCheckedAt: wallet?.last_checked_at ?? null,
       transactions:
         transactions?.map((tx) => ({
           id: tx.id,
@@ -254,6 +272,10 @@ export async function GET(request: Request) {
           created_at: tx.created_at,
           tx_hash: tx.tx_hash ?? undefined,
           explorer: tx.tx_hash ? explorerTxUrl(tx.tx_hash) : undefined,
+          confirmations: tx.confirmations ?? undefined,
+          block_height: tx.block_height ?? undefined,
+          fee_ltc: tx.fee_ltc != null ? Number(tx.fee_ltc) : undefined,
+          estimated_time: tx.estimated_time ?? undefined,
         })) ?? [],
     })
   } catch (error) {
