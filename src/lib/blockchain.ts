@@ -267,9 +267,11 @@ export async function sendLtc(params: {
   const utxos = await getUnspent(changeAddress)
   const totalInput = utxos.reduce((s, u) => s + u.satoshis, 0)
 
-  // Estimate fee: ~5 litoshi/byte, tx ~ inputs*148 + outputs*34 + 10 bytes.
+  // Estimate fee: ~2 litoshi/byte (Litecoin fees are low — this keeps the
+  // withdrawal fee minimal while still confirming in a reasonable time).
+  // Tx size ~ inputs*148 + outputs*34 + 10 bytes.
   const approxSize = utxos.length * 148 + 2 * 34 + 10
-  const fee = Math.max(1000, approxSize * 5)
+  const fee = Math.max(1000, approxSize * 2)
 
   // Auto-reduce the amount if the requested amount + fee exceeds the funds.
   // This makes "send the full balance" work: fee is deducted from the amount.

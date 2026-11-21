@@ -51,6 +51,11 @@ export default function WithdrawPage() {
   const [submitting, setSubmitting] = useState(false)
   const [receipt, setReceipt] = useState<ReceiptData | null>(null)
 
+  // Currency toggle for the amount: LTC (raw) or USD (auto-converted to LTC).
+  const [currency, setCurrency] = useState<'LTC' | 'USD'>('LTC')
+  const [priceUsd, setPriceUsd] = useState(0) // 1 LTC in USD, from /api/price
+  const [usdAmount, setUsdAmount] = useState('') // user's USD entry
+
   // Saved addresses
   const [saved, setSaved] = useState<SavedAddress[]>([])
   const [showSaveForm, setShowSaveForm] = useState(false)
@@ -92,6 +97,39 @@ export default function WithdrawPage() {
       mounted = false
     }
   }, [getAccessToken, balance])
+
+  // Fetch the current LTC/USD price so USD entry can be converted to LTC.
+  useEffect(() => {
+    let mounted = true
+    const loadPrice = async () => {
+      try {
+        const res = await fetch('/api/price', { cache: 'no-store' })
+        if (res.ok) {
+          const payload = await res.json()
+          if (mounted) setPriceUsd(Number(payload.priceUsd) || 0)
+        }
+      } catch {
+        // ignore
+      }
+    }
+    loadPrice()
+    const id = setInterval(loadPrice, 60000) // refresh price every 60s
+    return () => {
+      mounted = false
+      clearInterval(id)
+    }
+  }, [])
+
+  // The actual LTC amount to send, depending on the selected currency.
+  // USD input is converted to LTC using the live price.
+  const getLtcAmount = (): number => {
+    if (currency === 'USD') {
+      const usd = parseFloat(usdAmount)
+      if (!usd || usd <= 0 || !priceUsd) return 0
+      return usd / priceUsd
+    }
+    return parseFloat(amount) || 0
+  }
 
   useEffect(() => {
     const loadSaved = async () => {
@@ -155,10 +193,14 @@ export default function WithdrawPage() {
 
   const validate = () => {
     setFormError('')
-    const amt = parseFloat(amount)
+    const amt = getLtcAmount()
     const addr = to.trim()
     if (!addr) {
       setFormError('Please enter a recipient LTC address')
+      return false
+    }
+    if (currency === 'USD' && priceUsd <= 0) {
+      setFormError('Price not loaded yet — please wait a moment')
       return false
     }
     if (!amt || amt <= 0) {
@@ -183,7 +225,7 @@ export default function WithdrawPage() {
   const confirmSend = async () => {
     setConfirmSending(true)
     setFormError('')
-    const amt = parseFloat(amount)
+    const amt = getLtcAmount()
     const token = await getAccessToken()
     if (!token) return
 
@@ -394,29 +436,83 @@ export default function WithdrawPage() {
                     type="button"
                     variant="ghost"
                     size="sm"
-                    onClick={() =>
-                      setAmount(
-                        (maxSendable > 0 ? maxSendable : balance).toFixed(8)
-                      )
-                    }
+                    onClick={() => {
+                      if (currency === 'USD') {
+                        const maxUsd =
+                          priceUsd > 0
+                            ? (maxSendable > 0 ? maxSendable : balance) * priceUsd
+                            : 0
+                        setUsdAmount(maxUsd.toFixed(2))
+                      } else {
+                        setAmount(
+                          (maxSendable > 0 ? maxSendable : balance).toFixed(8)
+                        )
+                      }
+                    }}
                     className="mb-0.5"
                   >
                     Max
                   </Button>
                 </div>
               </div>
+
+              {/* Currency toggle: LTC or USD */}
+              <div className="flex items-center gap-2">
+                {(['LTC', 'USD'] as const).map((c) => (
+                  <button
+                    key={c}
+                    type="button"
+                    onClick={() => setCurrency(c)}
+                    className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+                      currency === c
+                        ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                        : 'bg-white/5 text-white/50 border border-white/10 hover:bg-white/10'
+                    }`}
+                  >
+                    {c}
+                  </button>
+                ))}
+                {currency === 'USD' && priceUsd > 0 && (
+                  <span className="text-[10px] text-white/40 ml-auto">
+                    1 LTC ≈ $
+                    {priceUsd.toLocaleString(undefined, {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    })}
+                  </span>
+                )}
+              </div>
+
               <div>
                 <label className="block text-xs font-medium text-white/50 mb-1.5">
-                  Amount to withdraw (LTC)
+                  {currency === 'USD'
+                    ? 'Amount to withdraw (USD)'
+                    : 'Amount to withdraw (LTC)'}
                 </label>
-                <Input
-                  type="number"
-                  step="0.00000001"
-                  placeholder="0.00"
-                  value={amount}
-                  onChange={(e) => setAmount(e.target.value)}
-                  autoFocus
-                />
+                {currency === 'USD' ? (
+                  <Input
+                    type="number"
+                    step="0.01"
+                    placeholder="0.00"
+                    value={usdAmount}
+                    onChange={(e) => setUsdAmount(e.target.value)}
+                    autoFocus
+                  />
+                ) : (
+                  <Input
+                    type="number"
+                    step="0.00000001"
+                    placeholder="0.00"
+                    value={amount}
+                    onChange={(e) => setAmount(e.target.value)}
+                    autoFocus
+                  />
+                )}
+                {currency === 'USD' && usdAmount && priceUsd > 0 && (
+                  <p className="text-xs text-white/40 mt-1.5">
+                    ≈ {(parseFloat(usdAmount) / priceUsd).toFixed(8)} LTC
+                  </p>
+                )}
               </div>
             </div>
 
@@ -431,7 +527,7 @@ export default function WithdrawPage() {
               type="submit"
               size="lg"
               className="w-full h-14 text-base"
-              disabled={submitting || !to || !amount}
+              disabled={submitting || !to || !getLtcAmount()}
             >
               {submitting ? (
                 <>
@@ -477,9 +573,16 @@ export default function WithdrawPage() {
                 {name.trim() && <ModalRow label="Name">{name.trim()}</ModalRow>}
                 <ModalRow label="Amount">
                   <span className="font-bold text-white">
-                    {parseFloat(amount).toFixed(8)} LTC
+                    {getLtcAmount().toFixed(8)} LTC
                   </span>
                 </ModalRow>
+                {currency === 'USD' && (
+                  <ModalRow label="You entered">
+                    <span className="text-white/70">
+                      ${parseFloat(usdAmount || '0').toFixed(2)}
+                    </span>
+                  </ModalRow>
+                )}
                 {fee > 0 && (
                   <ModalRow label="Network fee">
                     <span className="text-white/70">{fee.toFixed(8)} LTC</span>
