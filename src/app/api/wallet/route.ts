@@ -129,10 +129,12 @@ export async function GET(request: Request) {
       balance = Number(created.balance_ltc ?? 0)
     }
 
-    // 3. Deposit detection: sync from SoChain. On-chain confirmed balance is
-    //    the source of truth — if it exceeds the stored balance, the difference
-    //    is a deposit that was missed (rate-limited sync, failed detection,
-    //    etc.). Credit it so no confirmed incoming payment is ever lost.
+    // 3. Deposit detection + balance reconciliation. The on-chain confirmed
+    //    balance is the SINGLE source of truth. We record any confirmed
+    //    deposits that aren't in the transaction history yet, then set the
+    //    stored balance to the on-chain balance — this reconciles BOTH
+    //    directions (missed deposits push it up; sends / double-credits that
+    //    left the stored balance stale push it back down to the real value).
     //
     //    SPEED: SoChain calls are slow, so we only sync on-chain when the
     //    wallet hasn't been checked in the last ~2 minutes. This keeps the
@@ -148,9 +150,11 @@ export async function GET(request: Request) {
         const onchainBalance = await getAddressBalance(address)
         const txs = await getRecentTxs(address)
 
-        // Credit deposits that are not yet recorded (match on tx_hash).
-        // SoChain v3 lists transactions with value_received / value_sent: a tx
-        // with value_received > 0 paid into our address.
+        // Record confirmed deposits that aren't in the history yet (match on
+        // tx_hash). SoChain v3 lists transactions with value_received: a tx
+        // with value_received > 0 paid into our address. We only INSERT rows
+        // here — the balance itself is taken from on-chain below, so we never
+        // double-count a deposit.
         for (const tx of txs) {
           if (tx.value_received <= 0 || tx.confirmations <= 0) continue
 
@@ -184,40 +188,25 @@ export async function GET(request: Request) {
             confirmations: tx.confirmations,
             block_height: tx.block ?? null,
           })
-          balance += amount
         }
 
-        // Safety net: if the on-chain confirmed balance is higher than the
-        // stored balance, credit the difference. This catches deposits whose
-        // individual tx rows were never recorded (API failures, missed syncs).
-        if (onchainBalance > balance + 1e-12) {
-          const missed = onchainBalance - balance
-          await supabase.from('transactions').insert({
-            wallet_id: user.id,
-            type: 'deposit',
-            amount_ltc: missed,
-            status: 'completed',
-            counterparty_address: address,
-            tx_hash: null,
-          })
-          // Mark any pending deposit rows matching the credited amount as
-          // completed so the UI reflects the confirmed deposit.
-          const { data: pendingTxs } = await supabase
-            .from('transactions')
-            .select('id, amount_ltc')
-            .eq('wallet_id', user.id)
-            .eq('type', 'deposit')
-            .eq('status', 'pending')
-          for (const p of pendingTxs || []) {
-            if (Math.abs(Number(p.amount_ltc) - missed) < 1e-8) {
-              await supabase
-                .from('transactions')
-                .update({ status: 'completed' })
-                .eq('id', p.id)
-            }
-          }
-          balance = onchainBalance
-        }
+        // Cleanup: an older safety-net path inserted phantom deposit rows with
+        // tx_hash = NULL (the difference-based credit). Real on-chain deposits
+        // always carry a tx_hash, so NULL rows are duplicates that inflate the
+        // transaction history / totals. Remove them — the per-tx loop above
+        // re-records any real deposit that was missed, and the balance is taken
+        // from on-chain below, so no funds are affected.
+        await supabase
+          .from('transactions')
+          .delete()
+          .eq('wallet_id', user.id)
+          .eq('type', 'deposit')
+          .is('tx_hash', null)
+
+        // Reconcile balance to the real on-chain confirmed balance. This is
+        // the source of truth: it corrects upward (missed deposits) and
+        // downward (sends / stale double-credits) in one step.
+        balance = onchainBalance
 
         // Update balance + last checked.
         await supabase
