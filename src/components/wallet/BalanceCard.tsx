@@ -15,11 +15,11 @@ export function BalanceCard({ balance, currency = 'LTC', fiatValue }: BalanceCar
         <Sparkles size={48} className="text-white" />
       </div>
       <div className="relative z-10 flex flex-col gap-2">
-        <div className="flex items-baseline gap-2">
-          <span className="text-white/50 text-sm font-medium tracking-wider uppercase">
+        <div className="flex items-baseline gap-2 flex-wrap">
+          <span className="text-white/50 text-xs sm:text-sm font-medium tracking-wider uppercase">
             Available Balance
           </span>
-          <span className="text-3xl font-bold text-white tracking-tight">
+          <span className="text-2xl sm:text-3xl font-bold text-white tracking-tight break-all">
             {balance.toFixed(8)} {currency}
           </span>
         </div>
@@ -31,7 +31,7 @@ export function BalanceCard({ balance, currency = 'LTC', fiatValue }: BalanceCar
             })}
           </p>
         )}
-        <div className="mt-4 flex items-center gap-4 border-t border-white/10 pt-4">
+        <div className="mt-4 flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-4 border-t border-white/10 pt-4">
           <div className="flex items-center gap-2 text-emerald-400">
             <ArrowUpRight size={16} className="text-emerald-400" />
             <span className="text-xs font-medium text-emerald-300">Deposits enabled</span>

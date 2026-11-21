@@ -20,7 +20,7 @@ export function MobileNav() {
 
   return (
     <nav className="md:hidden fixed bottom-0 left-0 w-full z-40 border-t border-white/10 bg-black/80 backdrop-blur-xl">
-      <div className="flex items-center justify-around px-2 py-2">
+      <div className="flex items-center justify-around px-2 py-2.5">
         {items.map((item) => {
           const active =
             item.href === '/dashboard'
@@ -31,7 +31,7 @@ export function MobileNav() {
               key={item.label}
               onClick={() => router.push(item.href)}
               className={clsx(
-                'flex flex-col items-center gap-1 px-3 py-1.5 rounded-lg transition-colors',
+                'flex flex-col items-center gap-1 px-3 py-2 min-h-[48px] rounded-lg transition-colors',
                 active ? 'text-emerald-400' : 'text-white/40'
               )}
             >

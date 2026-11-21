@@ -60,7 +60,38 @@ export default function WithdrawPage() {
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [confirmSending, setConfirmSending] = useState(false)
 
+  // Fee estimate + max sendable amount (balance minus fee) from the API.
+  const [fee, setFee] = useState(0)
+  const [maxSendable, setMaxSendable] = useState(0)
+
   const balance = data?.balance ?? 0
+
+  useEffect(() => {
+    let mounted = true
+    const loadFee = async () => {
+      const token = await getAccessToken()
+      if (!token) return
+      try {
+        const res = await fetch('/api/wallet/fee', {
+          headers: { Authorization: `Bearer ${token}` },
+          cache: 'no-store',
+        })
+        if (res.ok) {
+          const payload = await res.json()
+          if (mounted) {
+            setFee(Number(payload.fee) || 0)
+            setMaxSendable(Number(payload.maxSendable) || 0)
+          }
+        }
+      } catch {
+        // ignore — fall back to balance-based max
+      }
+    }
+    loadFee()
+    return () => {
+      mounted = false
+    }
+  }, [getAccessToken, balance])
 
   useEffect(() => {
     const loadSaved = async () => {
@@ -134,8 +165,11 @@ export default function WithdrawPage() {
       setFormError('Please enter a valid amount')
       return false
     }
-    if (amt > balance) {
-      setFormError('Insufficient balance for this withdrawal')
+    // Max sendable is balance minus fee (fee is paid from the same UTXOs).
+    if (amt > (maxSendable > 0 ? maxSendable : balance)) {
+      setFormError(
+        'Insufficient balance — amount exceeds what can be sent after the network fee'
+      )
       return false
     }
     return true
@@ -175,13 +209,14 @@ export default function WithdrawPage() {
         return
       }
       setConfirmOpen(false)
+      const sent = Number(payload.sentAmount ?? amt)
       setReceipt({
-        amount: amt,
+        amount: sent,
         address: to.trim(),
         txHash: payload.txid || '',
         explorer: payload.explorer || '',
       })
-      toast(`${amt.toFixed(8)} LTC sent successfully`)
+      toast(`${sent.toFixed(8)} LTC sent successfully`)
     } catch {
       setFormError('Network error — withdrawal could not be submitted')
       setConfirmOpen(false)
@@ -359,7 +394,11 @@ export default function WithdrawPage() {
                     type="button"
                     variant="ghost"
                     size="sm"
-                    onClick={() => setAmount(balance.toFixed(8))}
+                    onClick={() =>
+                      setAmount(
+                        (maxSendable > 0 ? maxSendable : balance).toFixed(8)
+                      )
+                    }
                     className="mb-0.5"
                   >
                     Max
@@ -441,6 +480,11 @@ export default function WithdrawPage() {
                     {parseFloat(amount).toFixed(8)} LTC
                   </span>
                 </ModalRow>
+                {fee > 0 && (
+                  <ModalRow label="Network fee">
+                    <span className="text-white/70">{fee.toFixed(8)} LTC</span>
+                  </ModalRow>
+                )}
                 <ModalRow label="Balance after">
                   <span className="text-white/70">
                     {(balance - parseFloat(amount)).toFixed(8)} LTC

@@ -116,7 +116,7 @@ export function DashboardHeader({
           </Button>
         )}
         <div>
-          <h1 className="text-4xl font-bold text-white tracking-tight">{title}</h1>
+          <h1 className="text-3xl sm:text-4xl font-bold text-white tracking-tight">{title}</h1>
           {subtitle && (
             <p className="text-white/50 text-sm mt-1">{subtitle}</p>
           )}

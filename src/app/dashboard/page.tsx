@@ -94,7 +94,7 @@ export default function DashboardPage() {
           </div>
 
           {/* Totals strip */}
-          <div className="grid grid-cols-3 gap-4 mb-10">
+          <div className="grid grid-cols-3 md:grid-cols-3 gap-3 sm:gap-4 mb-6 sm:mb-10">
             <TotalCard
               icon={<ArrowDownLeft size={18} />}
               label="Total Received"
@@ -220,7 +220,7 @@ function TotalCard({
           {label}
         </span>
       </div>
-      <div className={`text-xl font-bold ${tintClass}`}>
+      <div className={`text-lg sm:text-xl font-bold ${tintClass}`}>
         {value.toFixed(8)} <span className="text-xs text-white/40">LTC</span>
       </div>
       {priceInr !== undefined && (
