@@ -62,22 +62,6 @@ export function PricePanel() {
 
   const change = price.change24h
   const isUp = change >= 0
-  const min = price.history.length ? Math.min(...price.history.map((h) => h.p)) : 0
-  const max = price.history.length ? Math.max(...price.history.map((h) => h.p)) : 1
-  const range = max - min || 1
-
-  // SVG sparkline.
-  const w = 520
-  const h = 140
-  const pts = price.history.length
-    ? price.history
-        .map((pt, i) => {
-          const x = (i / (price.history.length - 1 || 1)) * w
-          const y = h - ((pt.p - min) / range) * (h - 16) - 8
-          return `${x},${y}`
-        })
-        .join(' ')
-    : ''
 
   return (
     <div className="glass-panel p-5">
@@ -101,7 +85,7 @@ export function PricePanel() {
         </span>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 mb-4">
+      <div className="grid grid-cols-2 gap-3">
         <div className="bg-white/5 border border-white/10 rounded-xl p-3">
           <div className="text-[10px] text-white/40 uppercase tracking-wider">
             1 LTC in INR
@@ -118,43 +102,6 @@ export function PricePanel() {
             ${price.priceUsd.toLocaleString(undefined, { maximumFractionDigits: 2 })}
           </div>
         </div>
-      </div>
-
-      {/* Price graph */}
-      <div className="bg-black/40 border border-white/10 rounded-xl p-3">
-        <div className="text-[10px] text-white/40 uppercase tracking-wider mb-2">
-          7-Day Price (INR)
-        </div>
-        {pts ? (
-          <svg
-            viewBox={`0 0 ${w} ${h}`}
-            className="w-full h-32"
-            preserveAspectRatio="none"
-          >
-            <defs>
-              <linearGradient id="spark" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#34d399" stopOpacity="0.35" />
-                <stop offset="100%" stopColor="#34d399" stopOpacity="0" />
-              </linearGradient>
-            </defs>
-            <polyline
-              points={pts}
-              fill="none"
-              stroke="#34d399"
-              strokeWidth="2"
-              strokeLinejoin="round"
-              strokeLinecap="round"
-            />
-            <polygon
-              points={`0,${h} ${pts} ${w},${h}`}
-              fill="url(#spark)"
-            />
-          </svg>
-        ) : (
-          <div className="h-32 flex items-center justify-center text-xs text-white/40">
-            No chart data
-          </div>
-        )}
       </div>
     </div>
   )

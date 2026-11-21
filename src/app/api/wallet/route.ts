@@ -9,6 +9,7 @@ import {
   encryptKey,
   getAddressBalance,
   getRecentTxs,
+  getTxDetail,
   explorerTxUrl,
   explorerAddressUrl,
 } from '@/lib/blockchain'
@@ -137,12 +138,10 @@ export async function GET(request: Request) {
       const txs = await getRecentTxs(address)
 
       // Credit deposits that are not yet recorded (match on tx_hash).
+      // SoChain v3 lists transactions with value_received / value_sent: a tx
+      // with value_received > 0 paid into our address.
       for (const tx of txs) {
-        // Determine if this tx is an incoming payment to our address.
-        const isIncoming = tx.outputs?.some(
-          (o) => o.address === address && parseFloat(o.value || '0') > 0
-        )
-        if (!isIncoming || tx.confirmations <= 0) continue
+        if (tx.value_received <= 0 || tx.confirmations <= 0) continue
 
         // Skip if already recorded.
         const { data: existing } = await supabase
@@ -152,17 +151,24 @@ export async function GET(request: Request) {
           .maybeSingle()
         if (existing) continue
 
-        const amount = tx.outputs
-          .filter((o) => o.address === address)
-          .reduce((s, o) => s + (parseFloat(o.value || '0') || 0), 0)
+        const amount = tx.value_received
         if (amount <= 0) continue
+
+        // Best-effort counterparty (sender address) from tx detail.
+        let counterparty: string | null = null
+        try {
+          const detail = await getTxDetail(tx.txid)
+          counterparty = detail?.inputs?.[0]?.address ?? null
+        } catch {
+          // Non-fatal — counterparty is informational only.
+        }
 
         await supabase.from('transactions').insert({
           wallet_id: user.id,
           type: 'deposit',
           amount_ltc: amount,
           status: 'completed',
-          counterparty_address: tx.inputs?.[0]?.address ?? null,
+          counterparty_address: counterparty,
           tx_hash: tx.txid,
         })
         balance += amount

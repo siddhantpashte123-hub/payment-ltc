@@ -5,18 +5,23 @@ import crypto from 'crypto'
  * Blockchain engine for the LTC wallet.
  * - Real Litecoin mainnet addresses generated per user (with private keys,
  *   encrypted at rest with WALLET_SECRET_KEY).
- * - Deposit detection via SoChain API (confirmed balance + incoming txs).
- * - Real send broadcasting via SoChain (UTXO selection, signing, broadcast).
+ * - Deposit detection via SoChain API v3 (confirmed balance + incoming txs).
+ * - Real send broadcasting via Blockchair (SoChain v3 no longer broadcasts).
  * - Explorer URLs for transactions and addresses.
  *
  * NOTE: private keys are encrypted with AES-256-GCM using a secret derived from
  * WALLET_SECRET_KEY. In production, keep WALLET_SECRET_KEY strong and never
  * expose it to the client.
+ *
+ * IMPORTANT: SoChain retired API v2 — all calls now use API v3. SoChain v3
+ * does NOT broadcast transactions, so sends are broadcast via Blockchair.
  */
 
-const SOCHAIN_BASE = 'https://sochain.com/api/v2'
+const SOCHAIN_BASE = 'https://sochain.com/api/v3'
+const BLOCKCHAIR_BASE = 'https://api.blockchair.com/litecoin'
 const NETWORK = 'LTC' // Litecoin mainnet
 const LITOSHI_PER_LTC = 100_000_000 // 1 LTC = 1e8 litoshis
+const UNSPENT_PAGE_SIZE = 10 // SoChain v3 returns up to 10 unspent outputs per page
 
 function getSecret(): string {
   return process.env.WALLET_SECRET_KEY || 'ltc-wallet-dev-secret-change-me'
@@ -56,7 +61,7 @@ export function generateWallet(): { address: string; wif: string } {
   }
 }
 
-// ---------------- SoChain API ----------------
+// ---------------- SoChain API v3 ----------------
 
 async function sochainGet<T = any>(path: string): Promise<T> {
   const res = await fetch(`${SOCHAIN_BASE}/${path}`, {
@@ -89,62 +94,140 @@ async function sochainGetWithRetry<T = any>(
   throw lastErr
 }
 
-/** Confirmed on-chain balance (LTC) for an address. Throws on persistent failure. */
+/** Current block height for the network (used to compute confirmations). */
+async function getBlockCount(): Promise<number> {
+  const data = await sochainGetWithRetry<{ block_count: number }>(
+    `network_info/${NETWORK}`
+  )
+  return data.block_count
+}
+
+/** Confirmed + unconfirmed on-chain balance (LTC) for an address. */
 export async function getAddressBalance(address: string): Promise<number> {
   const data = await sochainGetWithRetry<{ confirmed: string }>(
-    `get_balance/${NETWORK}/${address}`
+    `balance/${NETWORK}/${address}`
   )
   return parseFloat(data.confirmed) || 0
 }
 
-/** Unspent outputs for building a send transaction. */
+/**
+ * Unspent outputs for building a send transaction.
+ * SoChain v3 paginates unspent_outputs (10 per page) — follows pages until a
+ * short page is returned. Only confirmed outputs (block != null) are returned.
+ */
 export async function getUnspent(address: string) {
-  const data = await sochainGet<{
-    txs?: Array<{
-      txid: string
-      output_no: number
-      script_hex: string
-      value: string
-      confirmations: number
-    }>
-  }>(`get_tx_unspent/${NETWORK}/${address}`)
+  const blockCount = await getBlockCount()
+  const utxos: Array<{
+    txId: string
+    outputNo: number
+    script: Buffer
+    satoshis: number
+    address: string
+    confirmations: number
+  }> = []
 
-  return (data.txs || []).map((t) => ({
-    txId: t.txid,
-    outputNo: t.output_no,
-    script: Buffer.from(t.script_hex, 'hex'),
-    satoshis: Math.floor(parseFloat(t.value) * LITOSHI_PER_LTC),
-    address,
+  for (let page = 1; page <= 20; page++) {
+    const data = await sochainGetWithRetry<{
+      outputs?: Array<{
+        hash: string
+        index: number
+        script: string
+        address: string
+        value: string
+        block: number | null
+      }>
+    }>(`unspent_outputs/${NETWORK}/${address}/${page}`)
+
+    const outputs = data.outputs || []
+    for (const o of outputs) {
+      // Only use confirmed outputs for spending.
+      if (o.block == null) continue
+      utxos.push({
+        txId: o.hash,
+        outputNo: o.index,
+        script: Buffer.from(o.script, 'hex'),
+        satoshis: Math.floor(parseFloat(o.value) * LITOSHI_PER_LTC),
+        address: o.address,
+        confirmations: blockCount - o.block,
+      })
+    }
+
+    if (outputs.length < UNSPENT_PAGE_SIZE) break
+  }
+
+  return utxos
+}
+
+export interface RecentTx {
+  txid: string
+  confirmations: number
+  time: number
+  value_received: number
+  value_sent: number
+  balance_change: number
+  block: number | null
+}
+
+/**
+ * Recent transactions for an address (for deposit detection + tx ids).
+ * SoChain v3 lists transactions (not outputs) — each entry has the amount the
+ * address received/sent. Confirmations are computed from the network block
+ * count and the tx's block height.
+ */
+export async function getRecentTxs(address: string): Promise<RecentTx[]> {
+  const blockCount = await getBlockCount()
+  const data = await sochainGetWithRetry<{
+    transactions?: Array<{
+      hash: string
+      value_sent: string
+      value_received: string
+      balance_change: string
+      time: number
+      block: number | null
+    }>
+  }>(`transactions/${NETWORK}/${address}/1`)
+
+  return (data.transactions || []).map((t) => ({
+    txid: t.hash,
+    confirmations:
+      t.block != null ? Math.max(0, blockCount - t.block) : 0,
+    time: t.time,
+    value_received: parseFloat(t.value_received) || 0,
+    value_sent: parseFloat(t.value_sent) || 0,
+    balance_change: parseFloat(t.balance_change) || 0,
+    block: t.block,
   }))
 }
 
-/** Recent transactions for an address (for deposit detection + tx ids). */
-export async function getRecentTxs(address: string) {
-  const data = await sochainGet<{
-    txs?: Array<{
-      txid: string
-      confirmations: number
-      time: number
-      value: string
-      inputs: Array<{ address?: string; value?: string }>
-      outputs: Array<{ address?: string; value?: string }>
-    }>
-  }>(`get_tx/${NETWORK}/${address}`)
-  return data.txs || []
+/**
+ * Full transaction detail (inputs/outputs) for a tx hash. Used to find the
+ * sender (counterparty) address for a deposit.
+ */
+export async function getTxDetail(txid: string) {
+  const data = await sochainGetWithRetry<{
+    inputs?: Array<{ address?: string; value?: string }>
+    outputs?: Array<{ address?: string; value?: string }>
+  }>(`transaction/${NETWORK}/${txid}`)
+  return data
 }
 
-/** Broadcast a signed raw transaction; returns the txid. */
+/**
+ * Broadcast a signed raw transaction via Blockchair (SoChain v3 no longer
+ * broadcasts). Returns the txid.
+ */
 export async function broadcastTx(txHex: string): Promise<string> {
-  const res = await fetch(`${SOCHAIN_BASE}/send_tx/${NETWORK}`, {
+  const res = await fetch(`${BLOCKCHAIR_BASE}/push/transaction`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ tx_hex: txHex }),
+    body: JSON.stringify({ data: txHex }),
   })
-  const json = await res.json()
-  if (json.status !== 'success') {
+  const json = await res.json().catch(() => ({}))
+  const txHash =
+    json?.data?.transaction_hash ?? json?.data?.hash ?? null
+  if (!res.ok || !txHash) {
     throw new Error(`Broadcast failed: ${JSON.stringify(json).slice(0, 300)}`)
   }
-  return json.data.txid
+  return txHash as string
 }
 
 // ---------------- Send ----------------
@@ -157,6 +240,7 @@ export interface SendResult {
 /**
  * Build, sign, and broadcast a real Litecoin transaction.
  * Selects UTXOs, pays a modest fee, returns change to the sender address.
+ * Broadcast is done via Blockchair (SoChain v3 does not broadcast).
  */
 export async function sendLtc(params: {
   to: string
