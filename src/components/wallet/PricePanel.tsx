@@ -46,7 +46,7 @@ export function PricePanel() {
 
   if (loading) {
     return (
-      <div className="glass-panel p-5 h-44 flex items-center justify-center">
+      <div className="premium-card p-5 h-44 flex items-center justify-center">
         <div className="w-8 h-8 border-3 border-white/10 border-t-white rounded-full animate-spin" />
       </div>
     )
@@ -54,7 +54,7 @@ export function PricePanel() {
 
   if (error || !price) {
     return (
-      <div className="glass-panel p-5 h-44 flex items-center justify-center text-sm text-white/40">
+      <div className="premium-card p-5 h-44 flex items-center justify-center text-sm text-white/40">
         {error}
       </div>
     )
@@ -64,42 +64,45 @@ export function PricePanel() {
   const isUp = change >= 0
 
   return (
-    <div className="glass-panel p-5">
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-2">
-          <Activity size={18} className="text-emerald-400" />
-          <h3 className="text-sm font-semibold text-white uppercase tracking-wider">
-            LTC Market
-          </h3>
+    <div className="premium-card p-5 relative overflow-hidden">
+      <div className="glow-orb w-40 h-40 bg-emerald-500/15 -top-12 right-8" />
+      <div className="relative z-10">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <Activity size={18} className="text-emerald-400" />
+            <h3 className="text-sm font-semibold gradient-text uppercase tracking-wider">
+              LTC Market
+            </h3>
+          </div>
+          <span
+            className={`inline-flex items-center gap-1 text-xs font-semibold rounded-full px-2.5 py-1 ${
+              isUp
+                ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                : 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
+            }`}
+          >
+            {isUp ? <TrendingUp size={13} /> : <TrendingDown size={13} />}
+            {isUp ? '+' : ''}
+            {change.toFixed(2)}% (24h)
+          </span>
         </div>
-        <span
-          className={`inline-flex items-center gap-1 text-xs font-semibold rounded-full px-2.5 py-1 ${
-            isUp
-              ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-              : 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
-          }`}
-        >
-          {isUp ? <TrendingUp size={13} /> : <TrendingDown size={13} />}
-          {isUp ? '+' : ''}
-          {change.toFixed(2)}% (24h)
-        </span>
-      </div>
 
-      <div className="grid grid-cols-2 gap-3">
-        <div className="bg-white/5 border border-white/10 rounded-xl p-3">
-          <div className="text-[10px] text-white/40 uppercase tracking-wider">
-            1 LTC in INR
+        <div className="grid grid-cols-2 gap-3">
+          <div className="rounded-xl p-3 bg-white/[0.03] border border-white/10">
+            <div className="text-[10px] text-white/40 uppercase tracking-wider">
+              1 LTC in INR
+            </div>
+            <div className="text-lg font-bold text-white mt-0.5">
+              ₹{price.priceInr.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+            </div>
           </div>
-          <div className="text-lg font-bold text-white mt-0.5">
-            ₹{price.priceInr.toLocaleString(undefined, { maximumFractionDigits: 2 })}
-          </div>
-        </div>
-        <div className="bg-white/5 border border-white/10 rounded-xl p-3">
-          <div className="text-[10px] text-white/40 uppercase tracking-wider">
-            1 LTC in USD
-          </div>
-          <div className="text-lg font-bold text-white mt-0.5">
-            ${price.priceUsd.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+          <div className="rounded-xl p-3 bg-white/[0.03] border border-white/10">
+            <div className="text-[10px] text-white/40 uppercase tracking-wider">
+              1 LTC in USD
+            </div>
+            <div className="text-lg font-bold text-white mt-0.5">
+              ${price.priceUsd.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+            </div>
           </div>
         </div>
       </div>

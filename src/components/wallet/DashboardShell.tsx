@@ -116,7 +116,7 @@ export function DashboardHeader({
           </Button>
         )}
         <div>
-          <h1 className="text-3xl sm:text-4xl font-bold text-white tracking-tight">{title}</h1>
+          <h1 className="text-3xl sm:text-4xl font-bold tracking-tight gradient-text">{title}</h1>
           {subtitle && (
             <p className="text-white/50 text-sm mt-1">{subtitle}</p>
           )}
@@ -154,7 +154,7 @@ export function DashboardHeader({
 
 export function DashboardError({ error }: { error: string }) {
   return (
-    <div className="glass-panel border-rose-500/30 bg-rose-500/5 rounded-2xl px-6 py-5">
+    <div className="premium-card border-rose-500/30 bg-rose-500/5 rounded-2xl px-6 py-5 mb-6">
       <p className="text-rose-500 font-medium text-sm break-words whitespace-pre-wrap">
         {error}
       </p>
@@ -164,10 +164,13 @@ export function DashboardError({ error }: { error: string }) {
 
 export function DashboardLoading() {
   return (
-    <div className="min-h-screen bg-black flex items-center justify-center">
+    <div className="premium-bg min-h-screen bg-black flex items-center justify-center">
       <div className="flex flex-col items-center gap-3">
-        <div className="w-10 h-10 border-4 border-white/10 border-t-white rounded-full animate-spin" />
-        <p className="text-white/50 text-sm">Loading wallet…</p>
+        <div className="relative w-12 h-12">
+          <div className="w-12 h-12 border-4 border-emerald-500/20 border-t-emerald-400 rounded-full animate-spin" />
+          <div className="absolute inset-0 rounded-full bg-emerald-500/10 blur-xl" />
+        </div>
+        <p className="text-white/50 text-sm tracking-wide">Loading wallet…</p>
       </div>
     </div>
   )
@@ -179,7 +182,7 @@ export function DashboardPageShell({
   children: ReactNode
 }) {
   return (
-    <div className="min-h-screen bg-black px-6 py-10 md:py-14 pb-28 md:pb-14">
+    <div className="premium-bg min-h-screen bg-black px-6 py-10 md:py-14 pb-28 md:pb-14">
       <div className="max-w-7xl mx-auto">{children}</div>
       <MobileNav />
     </div>

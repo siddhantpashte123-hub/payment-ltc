@@ -13,7 +13,7 @@ import { AddressDisplay } from '@/components/wallet/AddressDisplay'
 import { TransactionList } from '@/components/wallet/TransactionList'
 import { PricePanel } from '@/components/wallet/PricePanel'
 import { BigActionButton } from '@/components/wallet/BigActionButton'
-import { ArrowDownLeft, ArrowUpRight, Coins, ArrowLeftRight } from 'lucide-react'
+import { ArrowDownLeft, ArrowUpRight, Coins, ArrowLeftRight, Activity } from 'lucide-react'
 
 interface PriceData {
   priceInr: number
@@ -73,7 +73,7 @@ export default function DashboardPage() {
       {error && <DashboardError error={error} />}
 
       {!data ? (
-        <div className="glass-panel p-10 rounded-3xl text-center">
+        <div className="premium-card p-10 rounded-3xl text-center">
           <p className="text-white/50 mb-4">
             Wallet is not ready yet. Sign in again to create it.
           </p>
@@ -85,17 +85,18 @@ export default function DashboardPage() {
         <>
           {/* Top: Balance + live price (both sides) */}
           <div className="grid lg:grid-cols-3 gap-6 mb-6">
-            <div className="lg:col-span-1">
+            <div className="reveal-up lg:col-span-1">
               <BalanceCard balance={data.balance} fiatValue={fiatValueInr} />
             </div>
-            <div className="lg:col-span-2">
+            <div className="reveal-up lg:col-span-2" style={{ animationDelay: '0.08s' }}>
               <PricePanel />
             </div>
           </div>
 
           {/* Totals strip */}
-          <div className="grid grid-cols-3 md:grid-cols-3 gap-3 sm:gap-4 mb-6 sm:mb-10">
+          <div className="grid grid-cols-3 gap-3 sm:gap-4 mb-6 sm:mb-10">
             <TotalCard
+              reveal
               icon={<ArrowDownLeft size={18} />}
               label="Total Received"
               value={totals.received}
@@ -103,6 +104,7 @@ export default function DashboardPage() {
               priceInr={price?.priceInr}
             />
             <TotalCard
+              reveal
               icon={<ArrowUpRight size={18} />}
               label="Total Sent"
               value={totals.sent}
@@ -110,6 +112,7 @@ export default function DashboardPage() {
               priceInr={price?.priceInr}
             />
             <TotalCard
+              reveal
               icon={<ArrowLeftRight size={18} />}
               label="Net"
               value={net}
@@ -122,6 +125,7 @@ export default function DashboardPage() {
           <section className="mb-10">
             <div className="grid sm:grid-cols-3 gap-6">
               <BigActionButton
+                reveal
                 href="/dashboard/receive"
                 icon={<ArrowDownLeft size={26} className="text-emerald-400" />}
                 subtitle="Request a specific amount"
@@ -129,6 +133,7 @@ export default function DashboardPage() {
                 Receive
               </BigActionButton>
               <BigActionButton
+                reveal
                 href="/dashboard/deposit"
                 icon={<ArrowDownLeft size={26} className="text-white/80" />}
                 subtitle="Send LTC into your wallet"
@@ -136,6 +141,7 @@ export default function DashboardPage() {
                 Deposit
               </BigActionButton>
               <BigActionButton
+                reveal
                 href="/dashboard/withdraw"
                 icon={<ArrowUpRight size={26} className="text-white/80" />}
                 subtitle="Send LTC to any address"
@@ -147,48 +153,64 @@ export default function DashboardPage() {
 
           {/* Deposit address */}
           <section className="mb-10">
-            <div className="mb-5 flex items-center gap-3">
-              <div className="flex-shrink-0 w-11 h-11 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-white/70">
-                <Coins size={18} />
-              </div>
-              <div>
-                <h2 className="text-xl font-semibold text-white tracking-tight leading-tight">
-                  Your Deposit Address
-                </h2>
-                <p className="text-xs text-white/40 leading-tight">
-                  Unique address for your wallet — use it to deposit LTC
-                </p>
-              </div>
-            </div>
-            <AddressDisplay
-              address={data.address}
-              explorerAddress={data.explorerAddress}
+            <SectionTitle
+              reveal
+              icon={<Coins size={18} />}
+              title="Your Deposit Address"
+              desc="Unique address for your wallet — use it to deposit LTC"
             />
+            <div className="reveal-up" style={{ animationDelay: '0.15s' }}>
+              <AddressDisplay
+                address={data.address}
+                explorerAddress={data.explorerAddress}
+              />
+            </div>
           </section>
 
           {/* Section: Activity */}
           <section>
-            <div className="mb-5 flex items-center gap-3">
-              <div className="flex-shrink-0 w-11 h-11 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-white/70">
-                <Coins size={18} />
-              </div>
-              <div>
-                <h2 className="text-xl font-semibold text-white tracking-tight leading-tight">
-                  Activity
-                </h2>
-                <p className="text-xs text-white/40 leading-tight">
-                  Your deposit and withdrawal history with counterparty
-                </p>
-              </div>
-            </div>
-            <TransactionList
-              transactions={data.transactions}
-              priceInr={price?.priceInr}
+            <SectionTitle
+              reveal
+              icon={<Activity size={18} />}
+              title="Activity"
+              desc="Your deposit and withdrawal history with counterparty"
             />
+            <div className="reveal-up" style={{ animationDelay: '0.2s' }}>
+              <TransactionList
+                transactions={data.transactions}
+                priceInr={price?.priceInr}
+              />
+            </div>
           </section>
         </>
       )}
     </DashboardPageShell>
+  )
+}
+
+function SectionTitle({
+  icon,
+  title,
+  desc,
+  reveal,
+}: {
+  icon: React.ReactNode
+  title: string
+  desc: string
+  reveal?: boolean
+}) {
+  return (
+    <div className={`mb-5 flex items-center gap-3 ${reveal ? 'reveal-up' : ''}`}>
+      <div className="flex-shrink-0 w-11 h-11 rounded-xl bg-gradient-to-br from-white/10 to-white/[0.02] border border-white/10 flex items-center justify-center text-white/80 shadow-[inset_0_1px_0_rgba(255,255,255,0.1)]">
+        {icon}
+      </div>
+      <div>
+        <h2 className="text-xl font-semibold tracking-tight leading-tight gradient-text">
+          {title}
+        </h2>
+        <p className="text-xs text-white/40 leading-tight">{desc}</p>
+      </div>
+    </div>
   )
 }
 
@@ -198,12 +220,14 @@ function TotalCard({
   value,
   tint,
   priceInr,
+  reveal,
 }: {
   icon: React.ReactNode
   label: string
   value: number
   tint: 'emerald' | 'white' | 'rose'
   priceInr?: number
+  reveal?: boolean
 }) {
   const tintClass =
     tint === 'emerald'
@@ -213,7 +237,7 @@ function TotalCard({
       : 'text-white'
 
   return (
-    <div className="glass-panel p-5">
+    <div className={`premium-card p-5 ${reveal ? 'reveal-up' : ''}`}>
       <div className="flex items-center gap-2 mb-2">
         <span className={tintClass}>{icon}</span>
         <span className="text-[11px] text-white/40 uppercase tracking-wider">
