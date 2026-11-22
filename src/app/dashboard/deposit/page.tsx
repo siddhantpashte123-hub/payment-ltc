@@ -14,6 +14,7 @@ import { Receipt } from '@/components/wallet/Receipt'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useToast } from '@/components/ui/toast'
+import { useNotifications } from '@/lib/notifications'
 import {
   ArrowDownLeft,
   AlertCircle,
@@ -43,6 +44,7 @@ function DepositPageInner() {
   const searchParams = useSearchParams()
   const { data, loading, error, getAccessToken } = useWallet()
   const { toast } = useToast()
+  const { push: pushNotification } = useNotifications()
 
   const coin: 'ltc' | 'sol' = searchParams.get('coin') === 'sol' ? 'sol' : 'ltc'
   const unit = coin === 'sol' ? 'SOL' : 'LTC'
@@ -87,7 +89,14 @@ function DepositPageInner() {
             Math.abs(t.amount - receipt.amount) < 1e-8 &&
             t.status === 'completed'
         )
-        if (found && mounted) setConfirmed(true)
+        if (found && mounted) {
+          setConfirmed(true)
+          pushNotification({
+            type: 'deposit',
+            title: `${unit} deposit received`,
+            message: `${receipt.amount.toFixed(8)} ${unit} credited to your wallet`,
+          })
+        }
       } catch {
         // ignore
       }

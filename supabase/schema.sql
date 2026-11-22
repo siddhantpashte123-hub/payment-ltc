@@ -65,14 +65,19 @@ alter table public.transactions add column if not exists block_height integer;
 alter table public.transactions add column if not exists fee_ltc numeric(20, 8);
 alter table public.transactions add column if not exists estimated_time text;
 
--- Saved addresses (whitelist) - quick-select recipients on withdraw
+-- Saved addresses (contacts / whitelist) - quick-select recipients on withdraw
 create table if not exists public.saved_addresses (
   id uuid default uuid_generate_v4() primary key,
   user_id uuid references public.profiles(id) not null,
   label text not null,
   address text not null,
+  -- Which coin this address is for ('ltc' or 'sol')
+  coin text default 'ltc',
   created_at timestamptz default now()
 );
+
+-- Migration: add coin column to existing saved_addresses rows.
+alter table public.saved_addresses add column if not exists coin text default 'ltc';
 
 -- Receive requests (invoices) - a user asks to receive a specific amount
 create table if not exists public.receive_requests (
@@ -87,6 +92,16 @@ create table if not exists public.receive_requests (
 
 -- Migration: add coin column to existing receive_requests rows.
 alter table public.receive_requests add column if not exists coin text default 'ltc';
+
+-- App settings (per-user key/value): withdrawal limits, whitelist toggle, etc.
+-- Migration: create app_settings table for existing DBs (idempotent).
+create table if not exists public.app_settings (
+  user_id uuid references public.profiles(id) not null,
+  key text not null,
+  value text not null,
+  updated_at timestamptz default now(),
+  primary key (user_id, key)
+);
 
 -- Indexes
 create index if not exists idx_transactions_wallet_id on public.transactions(wallet_id);

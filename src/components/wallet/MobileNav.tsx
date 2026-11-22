@@ -2,7 +2,7 @@
 
 import { usePathname, useRouter } from 'next/navigation'
 import { clsx } from 'clsx'
-import { Home, ArrowDownLeft, ArrowUpRight, Receipt } from 'lucide-react'
+import { Home, ArrowDownLeft, ArrowUpRight, Receipt, Users } from 'lucide-react'
 
 /**
  * App-like bottom navigation for mobile on dashboard routes.
@@ -15,11 +15,12 @@ export function MobileNav() {
     { label: 'Home', icon: Home, href: '/dashboard' },
     { label: 'Deposit', icon: ArrowDownLeft, href: '/dashboard/deposit' },
     { label: 'Withdraw', icon: ArrowUpRight, href: '/dashboard/withdraw' },
+    { label: 'Contacts', icon: Users, href: '/dashboard/contacts' },
     { label: 'Activity', icon: Receipt, href: '/dashboard' },
   ]
 
   return (
-    <nav className="md:hidden fixed bottom-0 left-0 w-full z-40 border-t border-white/10 bg-black/80 backdrop-blur-xl">
+    <nav className="md:hidden fixed bottom-0 left-0 w-full z-40 border-t border-white/10 bg-black/80 backdrop-blur-xl pb-[env(safe-area-inset-bottom)]">
       <div className="flex items-center justify-around px-2 py-2.5">
         {items.map((item) => {
           const active =

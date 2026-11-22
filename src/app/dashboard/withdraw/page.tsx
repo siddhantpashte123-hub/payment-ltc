@@ -13,6 +13,7 @@ import { Receipt } from '@/components/wallet/Receipt'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useToast } from '@/components/ui/toast'
+import { useNotifications } from '@/lib/notifications'
 import {
   User,
   AlertCircle,
@@ -51,6 +52,7 @@ function WithdrawPageInner() {
   const searchParams = useSearchParams()
   const { data, loading, error, getAccessToken } = useWallet()
   const { toast } = useToast()
+  const { push: pushNotification } = useNotifications()
 
   // Selected coin (from URL query ?coin=ltc|sol).
   const coin: 'ltc' | 'sol' = searchParams.get('coin') === 'sol' ? 'sol' : 'ltc'
@@ -278,6 +280,11 @@ function WithdrawPageInner() {
         explorer: payload.explorer || '',
       })
       toast(`${sent.toFixed(8)} ${unit} sent successfully`)
+      pushNotification({
+        type: 'send',
+        title: `${unit} sent`,
+        message: `${sent.toFixed(8)} ${unit} sent to ${to.trim().slice(0, 12)}…`,
+      })
     } catch {
       setFormError('Network error — withdrawal could not be submitted')
       setConfirmOpen(false)

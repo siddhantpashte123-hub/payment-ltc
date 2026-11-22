@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { formatFiat } from '@/lib/fiat'
 import {
   ArrowUpRight,
   ArrowDownLeft,
@@ -33,27 +34,41 @@ interface Transaction {
 
 interface TransactionListProps {
   transactions: Transaction[]
-  priceInr?: number
+  pricePerCoin?: number
+  fiatCurrency?: 'INR' | 'USD'
   unit?: string
 }
 
 type FilterType = 'all' | 'deposit' | 'send'
 type SortType = 'newest' | 'oldest' | 'amount'
+type PeriodType = 'all' | '7d' | '30d' | '90d'
 
 export function TransactionList({
   transactions,
-  priceInr,
+  pricePerCoin,
+  fiatCurrency = 'INR',
   unit = 'LTC',
 }: TransactionListProps) {
   const router = useRouter()
   const [filter, setFilter] = useState<FilterType>('all')
   const [query, setQuery] = useState('')
   const [sort, setSort] = useState<SortType>('newest')
+  const [period, setPeriod] = useState<PeriodType>('all')
   const [visible, setVisible] = useState(10)
 
   const filtered = useMemo(() => {
+    const cutoff =
+      period === '7d'
+        ? Date.now() - 7 * 86400000
+        : period === '30d'
+        ? Date.now() - 30 * 86400000
+        : period === '90d'
+        ? Date.now() - 90 * 86400000
+        : 0
+
     let list = transactions.filter((tx) => {
       if (filter !== 'all' && tx.type !== filter) return false
+      if (cutoff && new Date(tx.created_at).getTime() < cutoff) return false
       if (!query.trim()) return true
       const q = query.trim().toLowerCase()
       return (
@@ -76,7 +91,7 @@ export function TransactionList({
     })
 
     return list
-  }, [transactions, filter, query, sort])
+  }, [transactions, filter, query, sort, period])
 
   const shown = filtered.slice(0, visible)
 
@@ -84,7 +99,7 @@ export function TransactionList({
     const header = [
       'Type',
       `Amount (${unit})`,
-      'Amount (INR)',
+      `Amount (${fiatCurrency})`,
       'Counterparty',
       'Address',
       'Note',
@@ -93,10 +108,10 @@ export function TransactionList({
       'Status',
       'Date',
     ]
-    const rows = transactions.map((tx) => [
+    const rows = filtered.map((tx) => [
       tx.type,
       tx.amount.toFixed(8),
-      priceInr ? (tx.amount * priceInr).toFixed(2) : '',
+      pricePerCoin ? formatFiat(tx.amount * pricePerCoin, fiatCurrency) : '',
       tx.name || '',
       tx.address,
       tx.note || '',
@@ -189,6 +204,22 @@ export function TransactionList({
               className="absolute right-3 top-1/2 -translate-y-1/2 text-white/40 pointer-events-none"
             />
           </div>
+          <div className="relative">
+            <select
+              value={period}
+              onChange={(e) => setPeriod(e.target.value as PeriodType)}
+              className="h-10 rounded-lg bg-white/5 border border-white/10 pl-3 pr-8 text-xs text-white focus:outline-none focus:ring-1 focus:ring-white appearance-none"
+            >
+              <option value="all">All time</option>
+              <option value="7d">Last 7 days</option>
+              <option value="30d">Last 30 days</option>
+              <option value="90d">Last 90 days</option>
+            </select>
+            <ChevronDown
+              size={14}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-white/40 pointer-events-none"
+            />
+          </div>
         </div>
       )}
 
@@ -256,9 +287,9 @@ export function TransactionList({
                     {isDeposit ? '+' : '−'}
                     {tx.amount.toFixed(8)} {unit}
                   </span>
-                  {priceInr !== undefined && (
+                  {pricePerCoin !== undefined && (
                     <span className="text-[10px] text-white/40">
-                      ≈ ₹{(tx.amount * priceInr).toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                      ≈ {formatFiat(tx.amount * pricePerCoin, fiatCurrency)}
                     </span>
                   )}
                   <div className="flex items-center gap-2">

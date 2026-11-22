@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   useWallet,
   DashboardHeader,
@@ -13,6 +13,9 @@ import { AddressDisplay } from '@/components/wallet/AddressDisplay'
 import { TransactionList } from '@/components/wallet/TransactionList'
 import { PricePanel } from '@/components/wallet/PricePanel'
 import { BigActionButton } from '@/components/wallet/BigActionButton'
+import { FiatToggle } from '@/components/wallet/FiatToggle'
+import { formatFiat, useFiatCurrency } from '@/lib/fiat'
+import { useNotifications } from '@/lib/notifications'
 import {
   ArrowDownLeft,
   ArrowUpRight,
@@ -38,8 +41,10 @@ interface PriceData {
 
 export default function DashboardPage() {
   const { data, loading, error, refresh } = useWallet()
+  const { push: pushNotification } = useNotifications()
   const [price, setPrice] = useState<PriceData | null>(null)
   const [coin, setCoin] = useState<Coin>('ltc')
+  const { currency, ready } = useFiatCurrency()
 
   // Fetch LTC + SOL prices for fiat values.
   useEffect(() => {
@@ -67,8 +72,12 @@ export default function DashboardPage() {
   const coinData = data?.[coin]
   const priceInr =
     coin === 'ltc' ? price?.priceInr : price?.sol?.priceInr
-  const fiatValueInr =
-    coinData && priceInr ? coinData.balance * priceInr : undefined
+  const priceUsd =
+    coin === 'ltc' ? price?.priceUsd : price?.sol?.priceUsd
+  // Fiat value in the user's preferred currency.
+  const pricePerCoin = currency === 'USD' ? priceUsd : priceInr
+  const fiatValue =
+    coinData && pricePerCoin ? coinData.balance * pricePerCoin : undefined
 
   // Totals from transactions for the selected coin.
   const coinTxs = (data?.transactions || []).filter((tx) => tx.coin === coin)
@@ -82,6 +91,28 @@ export default function DashboardPage() {
   )
   const net = totals.received - totals.sent
   const unit = coin === 'ltc' ? 'LTC' : 'SOL'
+
+  // Low-balance alert: notify once when balance dips below a threshold.
+  const lastLowRef = useRef<{ coin: string; notified: number } | null>(null)
+  useEffect(() => {
+    if (!coinData || !data) return
+    const bal = Number(coinData.balance ?? 0)
+    const threshold = coin === 'ltc' ? 0.01 : 0.001
+    const now = Date.now()
+    const prev = lastLowRef.current
+    // Only fire on a fresh crossing (previous balance not low, or different coin).
+    if (bal > 0 && bal < threshold) {
+      if (prev && prev.coin === coin && prev.notified > now - 60000) return
+      lastLowRef.current = { coin, notified: now }
+      pushNotification({
+        type: 'system',
+        title: `Low ${unit} balance`,
+        message: `Your balance is ${bal.toFixed(8)} ${unit} — consider topping up.`,
+      })
+    } else {
+      lastLowRef.current = null
+    }
+  }, [coinData, data, coin, unit, pushNotification])
 
   return (
     <DashboardPageShell>
@@ -105,8 +136,8 @@ export default function DashboardPage() {
         </div>
       ) : (
         <>
-          {/* Coin toggle */}
-          <div className="flex justify-center mb-8 reveal-up">
+          {/* Coin toggle + fiat toggle */}
+          <div className="flex flex-col items-center gap-3 mb-8 reveal-up">
             <div className="inline-flex p-1 rounded-2xl bg-white/5 border border-white/10 gap-1">
               <CoinToggle
                 active={coin === 'ltc'}
@@ -121,6 +152,7 @@ export default function DashboardPage() {
                 sub="SOL"
               />
             </div>
+            <FiatToggle />
           </div>
 
           {/* Top: Balance + live price (both sides) */}
@@ -129,7 +161,8 @@ export default function DashboardPage() {
               <BalanceCard
                 balance={coinData?.balance ?? 0}
                 currency={unit}
-                fiatValue={fiatValueInr}
+                fiatValue={fiatValue}
+                fiatCurrency={currency}
               />
             </div>
             <div className="reveal-up lg:col-span-2" style={{ animationDelay: '0.08s' }}>
@@ -146,7 +179,8 @@ export default function DashboardPage() {
               value={totals.received}
               tint="emerald"
               unit={unit}
-              priceInr={priceInr}
+              pricePerCoin={pricePerCoin}
+              fiatCurrency={currency}
             />
             <TotalCard
               reveal
@@ -155,7 +189,8 @@ export default function DashboardPage() {
               value={totals.sent}
               tint="white"
               unit={unit}
-              priceInr={priceInr}
+              pricePerCoin={pricePerCoin}
+              fiatCurrency={currency}
             />
             <TotalCard
               reveal
@@ -164,7 +199,8 @@ export default function DashboardPage() {
               value={net}
               tint={net >= 0 ? 'emerald' : 'rose'}
               unit={unit}
-              priceInr={priceInr}
+              pricePerCoin={pricePerCoin}
+              fiatCurrency={currency}
             />
           </div>
 
@@ -225,11 +261,29 @@ export default function DashboardPage() {
             <div className="reveal-up" style={{ animationDelay: '0.2s' }}>
               <TransactionList
                 transactions={coinTxs}
-                priceInr={priceInr}
+                pricePerCoin={pricePerCoin}
+                fiatCurrency={currency}
                 unit={unit}
               />
             </div>
           </section>
+
+          {/* Footer links */}
+          <div className="flex items-center justify-center gap-6 mt-10">
+            <a
+              href="/dashboard/contacts"
+              className="text-xs text-white/40 hover:text-white/70 transition-colors"
+            >
+              Contacts
+            </a>
+            <span className="text-white/15">·</span>
+            <a
+              href="/dashboard/settings"
+              className="text-xs text-white/40 hover:text-white/70 transition-colors"
+            >
+              Security settings
+            </a>
+          </div>
         </>
       )}
     </DashboardPageShell>
@@ -294,7 +348,8 @@ function TotalCard({
   value,
   tint,
   unit,
-  priceInr,
+  pricePerCoin,
+  fiatCurrency,
   reveal,
 }: {
   icon: React.ReactNode
@@ -302,7 +357,8 @@ function TotalCard({
   value: number
   tint: 'emerald' | 'white' | 'rose'
   unit: string
-  priceInr?: number
+  pricePerCoin?: number
+  fiatCurrency?: 'INR' | 'USD'
   reveal?: boolean
 }) {
   const tintClass =
@@ -323,9 +379,9 @@ function TotalCard({
       <div className={`text-sm sm:text-lg font-bold leading-tight ${tintClass}`}>
         {value.toFixed(8)} <span className="text-[10px] sm:text-xs text-white/40">{unit}</span>
       </div>
-      {priceInr !== undefined && (
+      {pricePerCoin !== undefined && (
         <div className="text-[10px] sm:text-[11px] text-white/40 mt-0.5 truncate">
-          ≈ ₹{(value * priceInr).toLocaleString(undefined, { maximumFractionDigits: 2 })}
+          ≈ {formatFiat(value * pricePerCoin, fiatCurrency ?? 'INR')}
         </div>
       )}
     </div>
