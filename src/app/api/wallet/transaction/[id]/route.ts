@@ -5,6 +5,7 @@ import {
   estimateConfirmationTime,
   explorerTxUrl,
 } from '@/lib/blockchain'
+import { getSolOnChainDetail, solExplorerTxUrl } from '@/lib/solana'
 
 /**
  * Single transaction with fresh on-chain detail (confirmations, block height,
@@ -40,7 +41,7 @@ export async function GET(
     const { data: tx, error: txError } = await supabase
       .from('transactions')
       .select(
-        'id, type, amount_ltc, status, counterparty_address, counterparty_name, note, tx_hash, confirmations, block_height, fee_ltc, estimated_time, created_at'
+        'id, type, amount_ltc, status, counterparty_address, counterparty_name, note, tx_hash, confirmations, block_height, fee_ltc, estimated_time, coin, created_at'
       )
       .eq('wallet_id', user.id)
       .eq('id', txId)
@@ -61,10 +62,16 @@ export async function GET(
     }
 
     // Fetch live on-chain detail for accurate confirmations / fee / block.
-    let onchain: Awaited<ReturnType<typeof getTxOnChainDetail>> | null = null
+    const isSol = tx.coin === 'sol'
+    let onchain:
+      | Awaited<ReturnType<typeof getTxOnChainDetail>>
+      | Awaited<ReturnType<typeof getSolOnChainDetail>>
+      | null = null
     if (tx.tx_hash) {
       try {
-        onchain = await getTxOnChainDetail(tx.tx_hash)
+        onchain = isSol
+          ? await getSolOnChainDetail(tx.tx_hash)
+          : await getTxOnChainDetail(tx.tx_hash)
       } catch (e) {
         // Non-fatal — fall back to stored values below.
         console.error('On-chain detail fetch failed:', e)
@@ -78,12 +85,13 @@ export async function GET(
         ? onchain.feeLtc
         : tx.fee_ltc != null
         ? Number(tx.fee_ltc)
+        : isSol
+        ? 0.000005
         : 0
     const feeLitoshi = Math.round(feeLtc * 100_000_000)
-    const estimatedTime = estimateConfirmationTime(
-      confirmations,
-      feeLitoshi
-    )
+    const estimatedTime = isSol
+      ? '~1 min'
+      : estimateConfirmationTime(confirmations, feeLitoshi)
 
     // Persist refreshed confirmations/block/fee so the dashboard list stays
     // accurate between loads (best-effort).
@@ -109,7 +117,12 @@ export async function GET(
       note: tx.note ?? undefined,
       created_at: tx.created_at,
       tx_hash: tx.tx_hash ?? undefined,
-      explorer: tx.tx_hash ? explorerTxUrl(tx.tx_hash) : undefined,
+      explorer: tx.tx_hash
+        ? isSol
+          ? solExplorerTxUrl(tx.tx_hash)
+          : explorerTxUrl(tx.tx_hash)
+        : undefined,
+      coin: tx.coin ?? 'ltc',
       confirmations,
       block_height: blockHeight,
       fee_ltc: feeLtc,

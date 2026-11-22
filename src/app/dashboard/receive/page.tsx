@@ -1,7 +1,7 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { Suspense, useEffect, useState } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { QRCodeSVG } from 'qrcode.react'
 import {
   useWallet,
@@ -32,9 +32,22 @@ interface ReceiveRequest {
 }
 
 export default function ReceivePage() {
+  return (
+    <Suspense fallback={<DashboardLoading />}>
+      <ReceivePageInner />
+    </Suspense>
+  )
+}
+
+function ReceivePageInner() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const { data, loading, error, getAccessToken } = useWallet()
   const { toast } = useToast()
+
+  const coin: 'ltc' | 'sol' = searchParams.get('coin') === 'sol' ? 'sol' : 'ltc'
+  const unit = coin === 'sol' ? 'SOL' : 'LTC'
+  const coinData = data?.[coin]
 
   const [amount, setAmount] = useState('')
   const [note, setNote] = useState('')
@@ -44,13 +57,13 @@ export default function ReceivePage() {
   const [copiedId, setCopiedId] = useState<string | null>(null)
 
   // The deposit address the request points to.
-  const address = data?.address || ''
+  const address = coinData?.address || ''
 
   const loadRequests = async () => {
     const token = await getAccessToken()
     if (!token) return
     try {
-      const res = await fetch('/api/wallet/receive', {
+      const res = await fetch(`/api/wallet/receive?coin=${coin}`, {
         headers: { Authorization: `Bearer ${token}` },
         cache: 'no-store',
       })
@@ -87,7 +100,7 @@ export default function ReceivePage() {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ amount: amt, note: note.trim() || undefined }),
+        body: JSON.stringify({ amount: amt, note: note.trim() || undefined, coin }),
       })
       const payload = await res.json().catch(() => ({}))
       if (!res.ok) {
@@ -107,7 +120,7 @@ export default function ReceivePage() {
   }
 
   const shareText = (req: ReceiveRequest) => {
-    const text = `Please send ${req.amount_ltc.toFixed(8)} LTC to my BlueWallet address: ${address}`
+    const text = `Please send ${req.amount_ltc.toFixed(8)} ${unit} to my BlueWallet address: ${address}`
     if (navigator.share) {
       navigator
         .share({ title: 'BlueWallet Receive Request', text })
@@ -131,8 +144,8 @@ export default function ReceivePage() {
   return (
     <DashboardPageShell>
       <DashboardHeader
-        title="Receive LTC"
-        subtitle="Create a request for a specific amount and share the QR"
+        title={`Receive ${unit}`}
+        subtitle={`Create a request for a specific amount and share the QR`}
         showBack
       />
 
@@ -150,7 +163,7 @@ export default function ReceivePage() {
             </div>
             <div>
               <label className="block text-xs font-medium text-white/50 mb-1.5">
-                Amount (LTC)
+                Amount ({unit})
               </label>
               <Input
                 type="number"
@@ -213,7 +226,7 @@ export default function ReceivePage() {
                   <div className="flex items-start justify-between gap-4 mb-4">
                     <div>
                       <p className="text-2xl font-bold text-white">
-                        {req.amount_ltc.toFixed(8)} <span className="text-sm text-white/50">LTC</span>
+                        {req.amount_ltc.toFixed(8)} <span className="text-sm text-white/50">{unit}</span>
                       </p>
                       {req.note && (
                         <p className="text-xs text-white/40 mt-1">{req.note}</p>
@@ -224,7 +237,11 @@ export default function ReceivePage() {
                     </div>
                     <div className="bg-white rounded-xl p-3 flex-shrink-0">
                       <QRCodeSVG
-                        value={`litecoin:${address}?amount=${req.amount_ltc}`}
+                        value={
+                          coin === 'sol'
+                            ? `solana:${address}?amount=${req.amount_ltc}`
+                            : `litecoin:${address}?amount=${req.amount_ltc}`
+                        }
                         size={72}
                         level="M"
                         bgColor="#ffffff"

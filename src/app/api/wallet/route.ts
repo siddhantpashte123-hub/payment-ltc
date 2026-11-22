@@ -13,6 +13,13 @@ import {
   explorerTxUrl,
   explorerAddressUrl,
 } from '@/lib/blockchain'
+import {
+  generateSolWallet,
+  getSolBalance,
+  getSolTransactions,
+  solExplorerTxUrl,
+  solExplorerAddressUrl,
+} from '@/lib/solana'
 
 export async function GET(request: Request) {
   try {
@@ -77,10 +84,12 @@ export async function GET(request: Request) {
       }
     }
 
-    // 2. Ensure wallet with a REAL LTC address + encrypted private key
+    // 2. Ensure wallet row (LTC + SOL addresses + encrypted keys).
     const { data: wallet, error: walletReadError } = await supabase
       .from('wallets')
-      .select('id, ltc_address, priv_key_encrypted, balance_ltc, last_checked_at')
+      .select(
+        'id, ltc_address, priv_key_encrypted, balance_ltc, last_checked_at, sol_address, sol_priv_key_encrypted, sol_balance, sol_last_checked_at'
+      )
       .eq('user_id', user.id)
       .maybeSingle()
 
@@ -91,28 +100,28 @@ export async function GET(request: Request) {
       )
     }
 
-    let address = wallet?.ltc_address ?? ''
-    let balance = Number(wallet?.balance_ltc ?? 0)
-    let privKeyEnc = wallet?.priv_key_encrypted ?? null
+    // --- LTC wallet ---
+    let ltcAddress = wallet?.ltc_address ?? ''
+    let ltcBalance = Number(wallet?.balance_ltc ?? 0)
+    let ltcPrivKeyEnc = wallet?.priv_key_encrypted ?? null
 
-    // If wallet exists but has no encrypted private key, it was created by an
-    // older placeholder build — regenerate a real address + key.
-    const needsRegenerate = !!wallet && !privKeyEnc
-
-    if (!wallet || needsRegenerate) {
-      // Generate a real Litecoin wallet (address + private key).
+    const ltcNeedsRegenerate = !!wallet && !ltcPrivKeyEnc
+    if (!wallet || ltcNeedsRegenerate) {
       const { address: newAddr, wif } = generateWallet()
-      address = newAddr
-      privKeyEnc = encryptKey(wif)
+      ltcAddress = newAddr
+      ltcPrivKeyEnc = encryptKey(wif)
 
       const { data: created, error: walletInsertError } = await supabase
         .from('wallets')
         .upsert(
           {
             user_id: user.id,
-            ltc_address: address,
-            priv_key_encrypted: privKeyEnc,
-            balance_ltc: balance,
+            ltc_address: ltcAddress,
+            priv_key_encrypted: ltcPrivKeyEnc,
+            balance_ltc: ltcBalance,
+            sol_address: wallet?.sol_address ?? null,
+            sol_priv_key_encrypted: wallet?.sol_priv_key_encrypted ?? null,
+            sol_balance: wallet?.sol_balance ?? 0,
           },
           { onConflict: 'user_id' }
         )
@@ -125,61 +134,70 @@ export async function GET(request: Request) {
           { status: 500 }
         )
       }
-      address = created.ltc_address
-      balance = Number(created.balance_ltc ?? 0)
+      ltcAddress = created.ltc_address
+      ltcBalance = Number(created.balance_ltc ?? 0)
     }
 
-    // 3. Deposit detection + balance reconciliation. The on-chain confirmed
-    //    balance is the SINGLE source of truth. We record any confirmed
-    //    deposits that aren't in the transaction history yet, then set the
-    //    stored balance to the on-chain balance — this reconciles BOTH
-    //    directions (missed deposits push it up; sends / double-credits that
-    //    left the stored balance stale push it back down to the real value).
-    //
-    //    SPEED: SoChain calls are slow, so we only sync on-chain when the
-    //    wallet hasn't been checked in the last ~2 minutes. This keeps the
-    //    dashboard fast — most loads serve the stored balance + transactions
-    //    instantly and skip the external calls.
-    const lastChecked = wallet?.last_checked_at
+    // --- SOL wallet ---
+    let solAddress = wallet?.sol_address ?? ''
+    let solBalance = Number(wallet?.sol_balance ?? 0)
+    let solPrivKeyEnc = wallet?.sol_priv_key_encrypted ?? null
+
+    const solNeedsGenerate = !!wallet && !solAddress
+    if (solNeedsGenerate) {
+      const solWallet = await generateSolWallet()
+      solAddress = solWallet.address
+      solPrivKeyEnc = encryptKey(solWallet.secretKeyB64)
+
+      const { error: solInsertError } = await supabase
+        .from('wallets')
+        .update({
+          sol_address: solAddress,
+          sol_priv_key_encrypted: solPrivKeyEnc,
+        })
+        .eq('user_id', user.id)
+      if (solInsertError) {
+        return NextResponse.json(
+          { error: `Could not create Solana wallet: ${solInsertError.message}` },
+          { status: 500 }
+        )
+      }
+    }
+
+    // 3. LTC deposit detection + balance reconciliation (on-chain = source of
+    //    truth; reconciles both directions). SPEED: only sync if stale >2 min.
+    const ltcLastChecked = wallet?.last_checked_at
       ? new Date(wallet.last_checked_at).getTime()
       : 0
-    const isStale = Date.now() - lastChecked > 2 * 60 * 1000
+    const ltcStale = Date.now() - ltcLastChecked > 2 * 60 * 1000
 
-    if (isStale) {
+    if (ltcStale) {
       try {
-        const onchainBalance = await getAddressBalance(address)
-        const txs = await getRecentTxs(address)
+        const onchainBalance = await getAddressBalance(ltcAddress)
+        const txs = await getRecentTxs(ltcAddress)
 
-        // Record confirmed deposits that aren't in the history yet (match on
-        // tx_hash). SoChain v3 lists transactions with value_received: a tx
-        // with value_received > 0 paid into our address. We only INSERT rows
-        // here — the balance itself is taken from on-chain below, so we never
-        // double-count a deposit.
         for (const tx of txs) {
           if (tx.value_received <= 0 || tx.confirmations <= 0) continue
-
-          // Skip if already recorded.
           const { data: existing } = await supabase
             .from('transactions')
             .select('id')
             .eq('tx_hash', tx.txid)
             .maybeSingle()
           if (existing) continue
-
           const amount = tx.value_received
           if (amount <= 0) continue
 
-          // Best-effort counterparty (sender address) from tx detail.
           let counterparty: string | null = null
           try {
             const detail = await getTxDetail(tx.txid)
             counterparty = detail?.inputs?.[0]?.address ?? null
           } catch {
-            // Non-fatal — counterparty is informational only.
+            // Non-fatal
           }
 
           await supabase.from('transactions').insert({
             wallet_id: user.id,
+            coin: 'ltc',
             type: 'deposit',
             amount_ltc: amount,
             status: 'completed',
@@ -190,52 +208,100 @@ export async function GET(request: Request) {
           })
         }
 
-        // Cleanup: an older safety-net path inserted phantom deposit rows with
-        // tx_hash = NULL (the difference-based credit). Real on-chain deposits
-        // always carry a tx_hash, so NULL rows are duplicates that inflate the
-        // transaction history / totals. Remove them — the per-tx loop above
-        // re-records any real deposit that was missed, and the balance is taken
-        // from on-chain below, so no funds are affected.
+        // Cleanup phantom NULL tx_hash deposit rows (old safety-net artifacts).
         await supabase
           .from('transactions')
           .delete()
           .eq('wallet_id', user.id)
+          .eq('coin', 'ltc')
           .eq('type', 'deposit')
           .is('tx_hash', null)
 
-        // Reconcile balance to the real on-chain confirmed balance. This is
-        // the source of truth: it corrects upward (missed deposits) and
-        // downward (sends / stale double-credits) in one step.
-        balance = onchainBalance
-
-        // Update balance + last checked.
+        ltcBalance = onchainBalance
         await supabase
           .from('wallets')
-          .update({ balance_ltc: balance, last_checked_at: new Date().toISOString() })
+          .update({
+            balance_ltc: ltcBalance,
+            last_checked_at: new Date().toISOString(),
+          })
           .eq('user_id', user.id)
       } catch (syncErr) {
-        // Deposit sync is best-effort; don't fail the whole request.
-        console.error('Deposit sync error:', syncErr)
+        console.error('LTC sync error:', syncErr)
       }
     } else {
-      // Fresh cached balance — no on-chain calls needed.
-      balance = Number(wallet?.balance_ltc ?? 0)
+      ltcBalance = Number(wallet?.balance_ltc ?? 0)
     }
 
-    // 4. Transactions (with explorer URLs)
+    // 4. SOL balance sync (on-chain = source of truth). SPEED: only if stale.
+    const solLastChecked = wallet?.sol_last_checked_at
+      ? new Date(wallet.sol_last_checked_at).getTime()
+      : 0
+    const solStale = Date.now() - solLastChecked > 2 * 60 * 1000
+
+    if (solStale && solAddress) {
+      try {
+        const solOnchain = await getSolBalance(solAddress)
+        solBalance = solOnchain
+
+        // Record confirmed SOL deposits not yet in history.
+        const solTxs = await getSolTransactions(solAddress)
+        for (const tx of solTxs) {
+          if (tx.type !== 'deposit' || tx.amount <= 0) continue
+          const { data: existing } = await supabase
+            .from('transactions')
+            .select('id')
+            .eq('tx_hash', tx.signature)
+            .maybeSingle()
+          if (existing) continue
+
+          await supabase.from('transactions').insert({
+            wallet_id: user.id,
+            coin: 'sol',
+            type: 'deposit',
+            amount_ltc: tx.amount,
+            status: tx.status,
+            counterparty_address: tx.counterparty || null,
+            tx_hash: tx.signature,
+            confirmations: tx.confirmations,
+            block_height: tx.blockHeight ?? null,
+            fee_ltc: tx.fee,
+          })
+        }
+
+        await supabase
+          .from('wallets')
+          .update({
+            sol_balance: solBalance,
+            sol_last_checked_at: new Date().toISOString(),
+          })
+          .eq('user_id', user.id)
+      } catch (solSyncErr) {
+        console.error('SOL sync error:', solSyncErr)
+      }
+    } else if (solAddress) {
+      solBalance = Number(wallet?.sol_balance ?? 0)
+    }
+
+    // 5. Transactions (both coins) with explorer URLs.
     const url = new URL(request.url)
+    const coin = url.searchParams.get('coin') // 'ltc' | 'sol' | null
     const limit = Math.min(
       Math.max(parseInt(url.searchParams.get('limit') || '50', 10), 1),
       200
     )
     const offset = Math.max(parseInt(url.searchParams.get('offset') || '0', 10), 0)
 
-    const { data: transactions, error: txError } = await supabase
+    const txQuery = supabase
       .from('transactions')
       .select('*')
       .eq('wallet_id', user.id)
       .order('created_at', { ascending: false })
       .range(offset, offset + limit - 1)
+
+    const { data: transactions, error: txError } =
+      coin === 'ltc' || coin === 'sol'
+        ? await txQuery.eq('coin', coin)
+        : await txQuery
 
     if (txError) {
       return NextResponse.json(
@@ -244,28 +310,45 @@ export async function GET(request: Request) {
       )
     }
 
+    const mapTx = (tx: any, chain: 'ltc' | 'sol') => ({
+      id: tx.id,
+      coin: chain,
+      type: tx.type,
+      amount: Math.abs(Number(tx.amount_ltc)),
+      status: tx.status,
+      address: tx.counterparty_address ?? '',
+      name: tx.counterparty_name ?? undefined,
+      note: tx.note ?? undefined,
+      created_at: tx.created_at,
+      tx_hash: tx.tx_hash ?? undefined,
+      explorer: tx.tx_hash
+        ? chain === 'ltc'
+          ? explorerTxUrl(tx.tx_hash)
+          : solExplorerTxUrl(tx.tx_hash)
+        : undefined,
+      confirmations: tx.confirmations ?? undefined,
+      block_height: tx.block_height ?? undefined,
+      fee_ltc: tx.fee_ltc != null ? Number(tx.fee_ltc) : undefined,
+      estimated_time: tx.estimated_time ?? undefined,
+    })
+
     return NextResponse.json({
-      address,
-      balance,
-      explorerAddress: explorerAddressUrl(address),
-      lastCheckedAt: wallet?.last_checked_at ?? null,
+      ltc: {
+        address: ltcAddress,
+        balance: ltcBalance,
+        explorerAddress: explorerAddressUrl(ltcAddress),
+        lastCheckedAt: wallet?.last_checked_at ?? null,
+      },
+      sol: {
+        address: solAddress,
+        balance: solBalance,
+        explorerAddress: solExplorerAddressUrl(solAddress),
+        lastCheckedAt: wallet?.sol_last_checked_at ?? null,
+      },
       transactions:
-        transactions?.map((tx) => ({
-          id: tx.id,
-          type: tx.type,
-          amount: Math.abs(Number(tx.amount_ltc)),
-          status: tx.status,
-          address: tx.counterparty_address ?? '',
-          name: tx.counterparty_name ?? undefined,
-          note: tx.note ?? undefined,
-          created_at: tx.created_at,
-          tx_hash: tx.tx_hash ?? undefined,
-          explorer: tx.tx_hash ? explorerTxUrl(tx.tx_hash) : undefined,
-          confirmations: tx.confirmations ?? undefined,
-          block_height: tx.block_height ?? undefined,
-          fee_ltc: tx.fee_ltc != null ? Number(tx.fee_ltc) : undefined,
-          estimated_time: tx.estimated_time ?? undefined,
-        })) ?? [],
+        (transactions?.map((tx) =>
+          mapTx(tx, (tx.coin as 'ltc' | 'sol') ?? 'ltc')
+        ) ?? []),
     })
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error'

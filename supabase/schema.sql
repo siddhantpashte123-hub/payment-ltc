@@ -21,8 +21,19 @@ create table if not exists public.wallets (
   priv_key_encrypted text,
   balance_ltc numeric(20, 8) default 0,
   last_checked_at timestamptz,
+  -- Solana (SOL) wallet - separate address + encrypted Ed25519 secret key
+  sol_address text,
+  sol_priv_key_encrypted text,
+  sol_balance numeric(20, 8) default 0,
+  sol_last_checked_at timestamptz,
   created_at timestamptz default now()
 );
+
+-- Migration: add Solana wallet columns to existing DBs (idempotent).
+alter table public.wallets add column if not exists sol_address text;
+alter table public.wallets add column if not exists sol_priv_key_encrypted text;
+alter table public.wallets add column if not exists sol_balance numeric(20, 8);
+alter table public.wallets add column if not exists sol_last_checked_at timestamptz;
 
 -- Transactions table
 create table if not exists public.transactions (
@@ -40,8 +51,13 @@ create table if not exists public.transactions (
   block_height integer,
   fee_ltc numeric(20, 8),
   estimated_time text,
+  -- Which chain this transaction belongs to ('ltc' or 'sol')
+  coin text default 'ltc',
   created_at timestamptz default now()
 );
+
+-- Migration: add coin column to existing transaction rows (default 'ltc').
+alter table public.transactions add column if not exists coin text default 'ltc';
 
 -- Migration: add on-chain detail columns to existing DBs (idempotent).
 alter table public.transactions add column if not exists confirmations integer;
@@ -64,8 +80,13 @@ create table if not exists public.receive_requests (
   user_id uuid references public.profiles(id) not null,
   amount_ltc numeric(20, 8) not null,
   note text,
+  -- Which coin this request is for ('ltc' or 'sol')
+  coin text default 'ltc',
   created_at timestamptz default now()
 );
+
+-- Migration: add coin column to existing receive_requests rows.
+alter table public.receive_requests add column if not exists coin text default 'ltc';
 
 -- Indexes
 create index if not exists idx_transactions_wallet_id on public.transactions(wallet_id);

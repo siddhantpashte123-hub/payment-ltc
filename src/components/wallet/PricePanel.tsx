@@ -10,9 +10,15 @@ interface PriceData {
   changeInr24h: number
   lastUpdated: number | string
   history: Array<{ t: number; p: number }>
+  sol?: {
+    priceInr: number
+    priceUsd: number
+    change24h: number
+    changeInr24h: number
+  } | null
 }
 
-export function PricePanel() {
+export function PricePanel({ coin = 'ltc' }: { coin?: 'ltc' | 'sol' }) {
   const [price, setPrice] = useState<PriceData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -44,6 +50,12 @@ export function PricePanel() {
     }
   }, [])
 
+  // Select the relevant coin's price data.
+  const active =
+    coin === 'sol' && price?.sol
+      ? { ...price.sol, history: price.history }
+      : price
+
   if (loading) {
     return (
       <div className="premium-card p-5 h-44 flex items-center justify-center">
@@ -52,7 +64,7 @@ export function PricePanel() {
     )
   }
 
-  if (error || !price) {
+  if (error || !active) {
     return (
       <div className="premium-card p-5 h-44 flex items-center justify-center text-sm text-white/40">
         {error}
@@ -60,8 +72,9 @@ export function PricePanel() {
     )
   }
 
-  const change = price.change24h
+  const change = active.change24h
   const isUp = change >= 0
+  const unit = coin === 'sol' ? 'SOL' : 'LTC'
 
   return (
     <div className="premium-card p-5 relative overflow-hidden">
@@ -71,7 +84,7 @@ export function PricePanel() {
           <div className="flex items-center gap-2">
             <Activity size={18} className="text-emerald-400" />
             <h3 className="text-sm font-semibold gradient-text uppercase tracking-wider">
-              LTC Market
+              {unit} Market
             </h3>
           </div>
           <span
@@ -90,18 +103,18 @@ export function PricePanel() {
         <div className="grid grid-cols-2 gap-3">
           <div className="rounded-xl p-3 bg-white/[0.03] border border-white/10">
             <div className="text-[10px] text-white/40 uppercase tracking-wider">
-              1 LTC in INR
+              1 {unit} in INR
             </div>
             <div className="text-lg font-bold text-white mt-0.5">
-              ₹{price.priceInr.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+              ₹{active.priceInr.toLocaleString(undefined, { maximumFractionDigits: 2 })}
             </div>
           </div>
           <div className="rounded-xl p-3 bg-white/[0.03] border border-white/10">
             <div className="text-[10px] text-white/40 uppercase tracking-wider">
-              1 LTC in USD
+              1 {unit} in USD
             </div>
             <div className="text-lg font-bold text-white mt-0.5">
-              ${price.priceUsd.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+              ${active.priceUsd.toLocaleString(undefined, { maximumFractionDigits: 2 })}
             </div>
           </div>
         </div>
