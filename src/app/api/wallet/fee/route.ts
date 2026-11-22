@@ -49,10 +49,11 @@ export async function GET(request: Request) {
     const totalInput = utxos.reduce((s, u) => s + u.satoshis, 0)
     const totalInputLtc = totalInput / LITOSHI_PER_LTC
 
-    // Fee estimate: ~2 litoshi/byte (Litecoin fees are low — keeps the
+    // Fee estimate: ~1 litoshi/byte (Litecoin fees are very low — keeps the
     // withdrawal fee minimal while still confirming in reasonable time).
+    // Floor of 300 litoshi covers small transactions.
     const approxSize = utxos.length * 148 + 2 * 34 + 10
-    const fee = Math.max(1000, approxSize * 2)
+    const fee = Math.max(300, approxSize * 1)
 
     const balance = Number(wallet.balance_ltc ?? 0)
     const feeLtc = fee / LITOSHI_PER_LTC

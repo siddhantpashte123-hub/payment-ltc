@@ -273,9 +273,9 @@ export async function getTxOnChainDetail(txid: string): Promise<TxOnChainDetail>
 
 /**
  * Estimated confirmation time (human readable) for a transaction.
- * Litecoin's average block time is ~2.5 minutes. With the app's low default
- * fee (~2 litoshi/byte) a typical tx confirms in roughly 30-60 minutes;
- * higher-fee txs are faster.
+ * Litecoin's average block time is ~2.5 minutes. With the app's very low
+ * default fee (~1 litoshi/byte) a typical tx confirms in roughly 30-60
+ * minutes; higher-fee txs are faster.
  */
 export function estimateConfirmationTime(
   confirmations: number,
@@ -289,12 +289,12 @@ export function estimateConfirmationTime(
     return `Confirmed in ~${Math.round(mins / 60)} hr`
   }
   // Pending: estimate blocks to wait based on fee rate (litoshi/byte).
-  const feeRate = txSize > 0 ? feeLitoshi / txSize : 2
+  const feeRate = txSize > 0 ? feeLitoshi / txSize : 1
   let blocks: number
   if (feeRate >= 10) blocks = 2 // high fee
   else if (feeRate >= 5) blocks = 4
   else if (feeRate >= 3) blocks = 8
-  else blocks = 16 // low fee (our default ~2 litoshi/byte)
+  else blocks = 16 // low fee (our default ~1 litoshi/byte)
   const mins = Math.round(blocks * 2.5)
   if (mins < 60) return `~${mins} min`
   return `~${Math.round((mins / 60) * 10) / 10} hr`
@@ -349,11 +349,12 @@ export async function sendLtc(params: {
   const utxos = await getUnspent(changeAddress)
   const totalInput = utxos.reduce((s, u) => s + u.satoshis, 0)
 
-  // Estimate fee: ~2 litoshi/byte (Litecoin fees are low — this keeps the
-  // withdrawal fee minimal while still confirming in a reasonable time).
-  // Tx size ~ inputs*148 + outputs*34 + 10 bytes.
+  // Estimate fee: ~1 litoshi/byte (Litecoin fees are very low — this keeps
+  // the withdrawal fee minimal while still confirming in a reasonable time).
+  // Tx size ~ inputs*148 + outputs*34 + 10 bytes. Floor of 300 litoshi covers
+  // small transactions and stays above Litecoin's typical relay minimum.
   const approxSize = utxos.length * 148 + 2 * 34 + 10
-  const fee = Math.max(1000, approxSize * 2)
+  const fee = Math.max(300, approxSize * 1)
 
   // Auto-reduce the amount if the requested amount + fee exceeds the funds.
   // This makes "send the full balance" work: fee is deducted from the amount.
