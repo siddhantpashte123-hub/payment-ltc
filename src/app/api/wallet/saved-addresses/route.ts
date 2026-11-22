@@ -26,7 +26,7 @@ export async function GET(request: Request) {
     const supabase = adminClient()
     const { data, error } = await supabase
       .from('saved_addresses')
-      .select('id, label, address, created_at')
+      .select('id, label, address, coin, created_at')
       .eq('user_id', user.id)
       .order('created_at', { ascending: false })
 
@@ -70,7 +70,7 @@ export async function POST(request: Request) {
       )
     }
 
-    let body: { label?: unknown; address?: unknown }
+    let body: { label?: unknown; address?: unknown; coin?: unknown }
     try {
       body = await request.json()
     } catch {
@@ -81,6 +81,7 @@ export async function POST(request: Request) {
       typeof body.label === 'string' ? body.label.trim().slice(0, 60) : ''
     const address =
       typeof body.address === 'string' ? body.address.trim() : ''
+    const coin: 'ltc' | 'sol' = body.coin === 'sol' ? 'sol' : 'ltc'
 
     if (!label || !address) {
       return NextResponse.json(
@@ -92,8 +93,8 @@ export async function POST(request: Request) {
     const supabase = adminClient()
     const { data, error } = await supabase
       .from('saved_addresses')
-      .insert({ user_id: user.id, label, address })
-      .select('id, label, address, created_at')
+      .insert({ user_id: user.id, label, address, coin })
+      .select('id, label, address, coin, created_at')
       .single()
 
     if (error) {

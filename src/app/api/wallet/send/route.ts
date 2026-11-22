@@ -79,6 +79,45 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Wallet not found' }, { status: 404 })
     }
 
+    // Load security settings (withdrawal limit + whitelist).
+    const { data: settingsData } = await supabase
+      .from('app_settings')
+      .select('key, value')
+      .eq('user_id', user.id)
+    const settings: Record<string, string> = {}
+    for (const row of settingsData ?? []) settings[row.key] = row.value
+
+    // Withdrawal limit per coin (empty = no limit).
+    const limitKey = `withdrawal_limit:${coin}`
+    if (settings[limitKey]) {
+      const limit = Number(settings[limitKey])
+      if (isFinite(limit) && limit > 0 && amount > limit) {
+        return NextResponse.json(
+          { error: `Withdrawal limit for ${coin.toUpperCase()} is ${limit} — this amount exceeds it` },
+          { status: 400 }
+        )
+      }
+    }
+
+    // Whitelist-only mode: reject sends to non-saved addresses.
+    if (settings['whitelist_only'] === 'true') {
+      const { data: saved } = await supabase
+        .from('saved_addresses')
+        .select('address')
+        .eq('user_id', user.id)
+        .eq('address', to)
+        .maybeSingle()
+      if (!saved) {
+        return NextResponse.json(
+          {
+            error:
+              'Whitelist mode is on — add this recipient to your Contacts first',
+          },
+          { status: 400 }
+        )
+      }
+    }
+
     const isSol = coin === 'sol'
     const balance = isSol
       ? Number(wallet.sol_balance ?? 0)

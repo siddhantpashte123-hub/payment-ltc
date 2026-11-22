@@ -1,14 +1,21 @@
 'use client'
 
 import { ArrowUpRight, ArrowDownLeft, Sparkles } from 'lucide-react'
+import { formatFiat, type FiatCurrency } from '@/lib/fiat'
 
 interface BalanceCardProps {
   balance: number
   currency?: string
   fiatValue?: number
+  fiatCurrency?: FiatCurrency
 }
 
-export function BalanceCard({ balance, currency = 'LTC', fiatValue }: BalanceCardProps) {
+export function BalanceCard({
+  balance,
+  currency = 'LTC',
+  fiatValue,
+  fiatCurrency = 'INR',
+}: BalanceCardProps) {
   return (
     <div className="premium-card p-6 md:p-8 relative overflow-hidden">
       {/* Ambient glow orbs */}
@@ -36,10 +43,7 @@ export function BalanceCard({ balance, currency = 'LTC', fiatValue }: BalanceCar
 
         {fiatValue !== undefined && (
           <p className="text-white/50 text-sm">
-            ≈ ₹{fiatValue.toLocaleString(undefined, {
-              minimumFractionDigits: 2,
-              maximumFractionDigits: 2,
-            })}
+            ≈ {formatFiat(fiatValue, fiatCurrency)}
           </p>
         )}
 

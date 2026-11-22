@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { LogOut, RefreshCw, ArrowLeft } from 'lucide-react'
 import { MobileNav } from '@/components/wallet/MobileNav'
+import { NotificationBell } from '@/components/wallet/NotificationBell'
 
 interface WalletCoin {
   address: string
@@ -134,6 +135,7 @@ export function DashboardHeader({
         </div>
       </div>
       <div className="flex items-center gap-3">
+        <NotificationBell />
         {onRefresh && (
           <Button
             variant="outline"
