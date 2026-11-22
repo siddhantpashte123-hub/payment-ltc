@@ -313,18 +313,18 @@ function TotalCard({
       : 'text-white'
 
   return (
-    <div className={`premium-card p-5 ${reveal ? 'reveal-up' : ''}`}>
-      <div className="flex items-center gap-2 mb-2">
+    <div className={`premium-card p-3 sm:p-5 ${reveal ? 'reveal-up' : ''} flex flex-col justify-center min-h-[78px] sm:min-h-0`}>
+      <div className="flex items-center gap-1.5 sm:gap-2 mb-1">
         <span className={tintClass}>{icon}</span>
-        <span className="text-[11px] text-white/40 uppercase tracking-wider">
+        <span className="text-[10px] sm:text-[11px] text-white/40 uppercase tracking-wider truncate">
           {label}
         </span>
       </div>
-      <div className={`text-lg sm:text-xl font-bold ${tintClass}`}>
-        {value.toFixed(8)} <span className="text-xs text-white/40">{unit}</span>
+      <div className={`text-sm sm:text-lg font-bold leading-tight ${tintClass}`}>
+        {value.toFixed(8)} <span className="text-[10px] sm:text-xs text-white/40">{unit}</span>
       </div>
       {priceInr !== undefined && (
-        <div className="text-[11px] text-white/40 mt-1">
+        <div className="text-[10px] sm:text-[11px] text-white/40 mt-0.5 truncate">
           ≈ ₹{(value * priceInr).toLocaleString(undefined, { maximumFractionDigits: 2 })}
         </div>
       )}
