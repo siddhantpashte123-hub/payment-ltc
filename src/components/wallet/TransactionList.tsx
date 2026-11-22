@@ -34,12 +34,17 @@ interface Transaction {
 interface TransactionListProps {
   transactions: Transaction[]
   priceInr?: number
+  unit?: string
 }
 
 type FilterType = 'all' | 'deposit' | 'send'
 type SortType = 'newest' | 'oldest' | 'amount'
 
-export function TransactionList({ transactions, priceInr }: TransactionListProps) {
+export function TransactionList({
+  transactions,
+  priceInr,
+  unit = 'LTC',
+}: TransactionListProps) {
   const router = useRouter()
   const [filter, setFilter] = useState<FilterType>('all')
   const [query, setQuery] = useState('')
@@ -78,7 +83,7 @@ export function TransactionList({ transactions, priceInr }: TransactionListProps
   const exportCsv = () => {
     const header = [
       'Type',
-      'Amount (LTC)',
+      `Amount (${unit})`,
       'Amount (INR)',
       'Counterparty',
       'Address',
@@ -225,7 +230,7 @@ export function TransactionList({ transactions, priceInr }: TransactionListProps
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-white truncate">
-                    {isDeposit ? 'Deposit received' : 'LTC sent'}
+                    {isDeposit ? 'Deposit received' : `${unit} sent`}
                   </p>
                   <p className="text-xs text-white/40 truncate flex items-center gap-1">
                     <User size={11} className="flex-shrink-0" />
@@ -249,7 +254,7 @@ export function TransactionList({ transactions, priceInr }: TransactionListProps
                     }
                   >
                     {isDeposit ? '+' : '−'}
-                    {tx.amount.toFixed(8)} LTC
+                    {tx.amount.toFixed(8)} {unit}
                   </span>
                   {priceInr !== undefined && (
                     <span className="text-[10px] text-white/40">

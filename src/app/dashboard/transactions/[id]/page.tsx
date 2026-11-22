@@ -38,6 +38,7 @@ interface TxDetail {
   created_at: string
   tx_hash?: string
   explorer?: string
+  coin?: 'ltc' | 'sol'
   confirmations?: number
   block_height?: number | null
   fee_ltc?: number
@@ -55,6 +56,9 @@ export default function TransactionDetailPage() {
   const [priceInr, setPriceInr] = useState<number | undefined>(undefined)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+
+  const coin: 'ltc' | 'sol' = tx?.coin === 'sol' ? 'sol' : 'ltc'
+  const unit = coin === 'sol' ? 'SOL' : 'LTC'
 
   useEffect(() => {
     let mounted = true
@@ -94,13 +98,17 @@ export default function TransactionDetailPage() {
     fetch('/api/price', { cache: 'no-store' })
       .then((r) => (r.ok ? r.json() : null))
       .then((p) => {
-        if (mounted && p?.priceInr) setPriceInr(p.priceInr)
+        if (mounted) {
+          const inr =
+            coin === 'sol' ? Number(p?.sol?.priceInr) : Number(p?.priceInr)
+          if (inr) setPriceInr(inr)
+        }
       })
       .catch(() => {})
     return () => {
       mounted = false
     }
-  }, [txId, router])
+  }, [txId, router, coin])
 
   if (loading) return <DashboardLoading />
 
@@ -139,7 +147,7 @@ export default function TransactionDetailPage() {
                 )}
               </div>
               <p className="text-white/50 text-sm uppercase tracking-wider mb-2">
-                {tx.type === 'deposit' ? 'Deposit Received' : 'LTC Sent'}
+                {tx.type === 'deposit' ? 'Deposit Received' : `${unit} Sent`}
               </p>
               <p
                 className={`text-4xl font-bold tracking-tight ${
@@ -147,7 +155,7 @@ export default function TransactionDetailPage() {
                 }`}
               >
                 {tx.type === 'deposit' ? '+' : '−'}
-                {tx.amount.toFixed(8)} <span className="text-xl text-white/50">LTC</span>
+                {tx.amount.toFixed(8)} <span className="text-xl text-white/50">{unit}</span>
               </p>
 
               <div className="flex items-center justify-center gap-2 mt-4">
@@ -267,7 +275,7 @@ export default function TransactionDetailPage() {
                 <span className="inline-flex items-center gap-1.5 text-sm text-white/70">
                   <Zap size={14} className="text-amber-400" />
                   {tx.fee_ltc != null
-                    ? `${tx.fee_ltc} LTC (${tx.fee_litoshi ?? Math.round(tx.fee_ltc * 1e8)} litoshi)`
+                    ? `${tx.fee_ltc} ${unit}${coin === 'ltc' ? ` (${tx.fee_litoshi ?? Math.round(tx.fee_ltc * 1e8)} litoshi)` : ''}`
                     : '—'}
                 </span>
               </DetailRow>
@@ -300,7 +308,7 @@ export default function TransactionDetailPage() {
                   rel="noopener noreferrer"
                   className="inline-flex items-center gap-1.5 text-xs font-medium text-emerald-400 hover:text-emerald-300 transition-colors"
                 >
-                  View on SoChain
+                  View on {coin === 'sol' ? 'Solscan' : 'SoChain'}
                   <ExternalLink size={12} />
                 </a>
               </div>

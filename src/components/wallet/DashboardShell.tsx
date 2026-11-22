@@ -7,12 +7,19 @@ import { Button } from '@/components/ui/button'
 import { LogOut, RefreshCw, ArrowLeft } from 'lucide-react'
 import { MobileNav } from '@/components/wallet/MobileNav'
 
-interface WalletData {
-  balance: number
+interface WalletCoin {
   address: string
+  balance: number
   explorerAddress?: string
+  lastCheckedAt?: string | null
+}
+
+interface WalletData {
+  ltc: WalletCoin
+  sol: WalletCoin
   transactions: Array<{
     id: string
+    coin: 'ltc' | 'sol'
     type: 'deposit' | 'send'
     amount: number
     status: 'completed' | 'pending' | 'failed'
@@ -22,6 +29,10 @@ interface WalletData {
     created_at: string
     tx_hash?: string
     explorer?: string
+    confirmations?: number
+    block_height?: number | null
+    fee_ltc?: number
+    estimated_time?: string
   }>
 }
 

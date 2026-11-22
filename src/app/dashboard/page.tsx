@@ -13,18 +13,35 @@ import { AddressDisplay } from '@/components/wallet/AddressDisplay'
 import { TransactionList } from '@/components/wallet/TransactionList'
 import { PricePanel } from '@/components/wallet/PricePanel'
 import { BigActionButton } from '@/components/wallet/BigActionButton'
-import { ArrowDownLeft, ArrowUpRight, Coins, ArrowLeftRight, Activity } from 'lucide-react'
+import {
+  ArrowDownLeft,
+  ArrowUpRight,
+  Coins,
+  ArrowLeftRight,
+  Activity,
+} from 'lucide-react'
+
+type Coin = 'ltc' | 'sol'
 
 interface PriceData {
   priceInr: number
   priceUsd: number
+  change24h: number
+  changeInr24h: number
+  sol?: {
+    priceInr: number
+    priceUsd: number
+    change24h: number
+    changeInr24h: number
+  } | null
 }
 
 export default function DashboardPage() {
   const { data, loading, error, refresh } = useWallet()
   const [price, setPrice] = useState<PriceData | null>(null)
+  const [coin, setCoin] = useState<Coin>('ltc')
 
-  // Fetch LTC price for the fiat value of the balance + transaction INR.
+  // Fetch LTC + SOL prices for fiat values.
   useEffect(() => {
     let mounted = true
     const load = async () => {
@@ -32,7 +49,7 @@ export default function DashboardPage() {
         const res = await fetch('/api/price', { cache: 'no-store' })
         if (!res.ok) return
         const p = await res.json()
-        if (mounted) setPrice({ priceInr: p.priceInr, priceUsd: p.priceUsd })
+        if (mounted) setPrice(p)
       } catch {
         // price is optional; keep last value
       }
@@ -47,11 +64,15 @@ export default function DashboardPage() {
 
   if (loading) return <DashboardLoading />
 
+  const coinData = data?.[coin]
+  const priceInr =
+    coin === 'ltc' ? price?.priceInr : price?.sol?.priceInr
   const fiatValueInr =
-    data && price ? data.balance * price.priceInr : undefined
+    coinData && priceInr ? coinData.balance * priceInr : undefined
 
-  // Totals from transactions.
-  const totals = (data?.transactions || []).reduce(
+  // Totals from transactions for the selected coin.
+  const coinTxs = (data?.transactions || []).filter((tx) => tx.coin === coin)
+  const totals = coinTxs.reduce(
     (acc, tx) => {
       if (tx.type === 'deposit') acc.received += tx.amount
       else acc.sent += tx.amount
@@ -60,12 +81,13 @@ export default function DashboardPage() {
     { received: 0, sent: 0 }
   )
   const net = totals.received - totals.sent
+  const unit = coin === 'ltc' ? 'LTC' : 'SOL'
 
   return (
     <DashboardPageShell>
       <DashboardHeader
         title="Dashboard"
-        subtitle="Your Litecoin balance, prices and transactions — all in one place"
+        subtitle="Your balance, prices and transactions — all in one place"
         onRefresh={refresh}
         loading={loading}
       />
@@ -83,13 +105,35 @@ export default function DashboardPage() {
         </div>
       ) : (
         <>
+          {/* Coin toggle */}
+          <div className="flex justify-center mb-8 reveal-up">
+            <div className="inline-flex p-1 rounded-2xl bg-white/5 border border-white/10 gap-1">
+              <CoinToggle
+                active={coin === 'ltc'}
+                onClick={() => setCoin('ltc')}
+                label="Litecoin"
+                sub="LTC"
+              />
+              <CoinToggle
+                active={coin === 'sol'}
+                onClick={() => setCoin('sol')}
+                label="Solana"
+                sub="SOL"
+              />
+            </div>
+          </div>
+
           {/* Top: Balance + live price (both sides) */}
           <div className="grid lg:grid-cols-3 gap-6 mb-6">
             <div className="reveal-up lg:col-span-1">
-              <BalanceCard balance={data.balance} fiatValue={fiatValueInr} />
+              <BalanceCard
+                balance={coinData?.balance ?? 0}
+                currency={unit}
+                fiatValue={fiatValueInr}
+              />
             </div>
             <div className="reveal-up lg:col-span-2" style={{ animationDelay: '0.08s' }}>
-              <PricePanel />
+              <PricePanel coin={coin} />
             </div>
           </div>
 
@@ -101,7 +145,8 @@ export default function DashboardPage() {
               label="Total Received"
               value={totals.received}
               tint="emerald"
-              priceInr={price?.priceInr}
+              unit={unit}
+              priceInr={priceInr}
             />
             <TotalCard
               reveal
@@ -109,7 +154,8 @@ export default function DashboardPage() {
               label="Total Sent"
               value={totals.sent}
               tint="white"
-              priceInr={price?.priceInr}
+              unit={unit}
+              priceInr={priceInr}
             />
             <TotalCard
               reveal
@@ -117,7 +163,8 @@ export default function DashboardPage() {
               label="Net"
               value={net}
               tint={net >= 0 ? 'emerald' : 'rose'}
-              priceInr={price?.priceInr}
+              unit={unit}
+              priceInr={priceInr}
             />
           </div>
 
@@ -126,7 +173,7 @@ export default function DashboardPage() {
             <div className="grid sm:grid-cols-3 gap-6">
               <BigActionButton
                 reveal
-                href="/dashboard/receive"
+                href={`/dashboard/receive?coin=${coin}`}
                 icon={<ArrowDownLeft size={26} className="text-emerald-400" />}
                 subtitle="Request a specific amount"
               >
@@ -134,17 +181,17 @@ export default function DashboardPage() {
               </BigActionButton>
               <BigActionButton
                 reveal
-                href="/dashboard/deposit"
+                href={`/dashboard/deposit?coin=${coin}`}
                 icon={<ArrowDownLeft size={26} className="text-white/80" />}
-                subtitle="Send LTC into your wallet"
+                subtitle={`Send ${unit} into your wallet`}
               >
                 Deposit
               </BigActionButton>
               <BigActionButton
                 reveal
-                href="/dashboard/withdraw"
+                href={`/dashboard/withdraw?coin=${coin}`}
                 icon={<ArrowUpRight size={26} className="text-white/80" />}
-                subtitle="Send LTC to any address"
+                subtitle={`Send ${unit} to any address`}
               >
                 Withdraw
               </BigActionButton>
@@ -156,13 +203,13 @@ export default function DashboardPage() {
             <SectionTitle
               reveal
               icon={<Coins size={18} />}
-              title="Your Deposit Address"
-              desc="Unique address for your wallet — use it to deposit LTC"
+              title={`Your ${unit} Deposit Address`}
+              desc={`Unique address for your ${unit} wallet — use it to deposit`}
             />
             <div className="reveal-up" style={{ animationDelay: '0.15s' }}>
               <AddressDisplay
-                address={data.address}
-                explorerAddress={data.explorerAddress}
+                address={coinData?.address ?? ''}
+                explorerAddress={coinData?.explorerAddress}
               />
             </div>
           </section>
@@ -177,14 +224,41 @@ export default function DashboardPage() {
             />
             <div className="reveal-up" style={{ animationDelay: '0.2s' }}>
               <TransactionList
-                transactions={data.transactions}
-                priceInr={price?.priceInr}
+                transactions={coinTxs}
+                priceInr={priceInr}
+                unit={unit}
               />
             </div>
           </section>
         </>
       )}
     </DashboardPageShell>
+  )
+}
+
+function CoinToggle({
+  active,
+  onClick,
+  label,
+  sub,
+}: {
+  active: boolean
+  onClick: () => void
+  label: string
+  sub: string
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={`px-5 py-2.5 rounded-xl text-sm font-semibold transition-all ${
+        active
+          ? 'bg-gradient-to-br from-white to-white/80 text-black shadow-lg'
+          : 'text-white/50 hover:text-white/80'
+      }`}
+    >
+      {label}
+      <span className="ml-2 text-xs font-bold opacity-60">{sub}</span>
+    </button>
   )
 }
 
@@ -219,6 +293,7 @@ function TotalCard({
   label,
   value,
   tint,
+  unit,
   priceInr,
   reveal,
 }: {
@@ -226,6 +301,7 @@ function TotalCard({
   label: string
   value: number
   tint: 'emerald' | 'white' | 'rose'
+  unit: string
   priceInr?: number
   reveal?: boolean
 }) {
@@ -245,7 +321,7 @@ function TotalCard({
         </span>
       </div>
       <div className={`text-lg sm:text-xl font-bold ${tintClass}`}>
-        {value.toFixed(8)} <span className="text-xs text-white/40">LTC</span>
+        {value.toFixed(8)} <span className="text-xs text-white/40">{unit}</span>
       </div>
       {priceInr !== undefined && (
         <div className="text-[11px] text-white/40 mt-1">

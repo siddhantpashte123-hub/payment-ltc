@@ -1,7 +1,7 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { Suspense, useEffect, useState } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import {
   useWallet,
   DashboardHeader,
@@ -39,9 +39,23 @@ interface ReceiptData {
 }
 
 export default function WithdrawPage() {
+  return (
+    <Suspense fallback={<DashboardLoading />}>
+      <WithdrawPageInner />
+    </Suspense>
+  )
+}
+
+function WithdrawPageInner() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const { data, loading, error, getAccessToken } = useWallet()
   const { toast } = useToast()
+
+  // Selected coin (from URL query ?coin=ltc|sol).
+  const coin: 'ltc' | 'sol' = searchParams.get('coin') === 'sol' ? 'sol' : 'ltc'
+  const unit = coin === 'sol' ? 'SOL' : 'LTC'
+  const coinData = data?.[coin]
 
   const [to, setTo] = useState('')
   const [name, setName] = useState('')
@@ -69,7 +83,7 @@ export default function WithdrawPage() {
   const [fee, setFee] = useState(0)
   const [maxSendable, setMaxSendable] = useState(0)
 
-  const balance = data?.balance ?? 0
+  const balance = coinData?.balance ?? 0
 
   useEffect(() => {
     let mounted = true
@@ -77,7 +91,7 @@ export default function WithdrawPage() {
       const token = await getAccessToken()
       if (!token) return
       try {
-        const res = await fetch('/api/wallet/fee', {
+        const res = await fetch(`/api/wallet/fee?coin=${coin}`, {
           headers: { Authorization: `Bearer ${token}` },
           cache: 'no-store',
         })
@@ -98,7 +112,7 @@ export default function WithdrawPage() {
     }
   }, [getAccessToken, balance])
 
-  // Fetch the current LTC/USD price so USD entry can be converted to LTC.
+  // Fetch the current coin's USD price so USD entry can be converted.
   useEffect(() => {
     let mounted = true
     const loadPrice = async () => {
@@ -106,7 +120,11 @@ export default function WithdrawPage() {
         const res = await fetch('/api/price', { cache: 'no-store' })
         if (res.ok) {
           const payload = await res.json()
-          if (mounted) setPriceUsd(Number(payload.priceUsd) || 0)
+          const usd =
+            coin === 'sol'
+              ? Number(payload?.sol?.priceUsd) || 0
+              : Number(payload?.priceUsd) || 0
+          if (mounted) setPriceUsd(usd)
         }
       } catch {
         // ignore
@@ -118,7 +136,7 @@ export default function WithdrawPage() {
       mounted = false
       clearInterval(id)
     }
-  }, [])
+  }, [coin])
 
   // The actual LTC amount to send, depending on the selected currency.
   // USD input is converted to LTC using the live price.
@@ -239,6 +257,7 @@ export default function WithdrawPage() {
         body: JSON.stringify({
           to: to.trim(),
           amount: amt,
+          coin,
           name: name.trim() || undefined,
           note: note.trim() || undefined,
         }),
@@ -258,7 +277,7 @@ export default function WithdrawPage() {
         txHash: payload.txid || '',
         explorer: payload.explorer || '',
       })
-      toast(`${sent.toFixed(8)} LTC sent successfully`)
+      toast(`${sent.toFixed(8)} ${unit} sent successfully`)
     } catch {
       setFormError('Network error — withdrawal could not be submitted')
       setConfirmOpen(false)
@@ -272,8 +291,8 @@ export default function WithdrawPage() {
   return (
     <DashboardPageShell>
       <DashboardHeader
-        title="Withdraw LTC"
-        subtitle="Send Litecoin to any LTC address — broadcast instantly"
+        title={`Withdraw ${unit}`}
+        subtitle={`Send ${unit} to any ${unit} address — broadcast instantly`}
         showBack
       />
 
@@ -373,10 +392,10 @@ export default function WithdrawPage() {
               </div>
               <div>
                 <label className="block text-xs font-medium text-white/50 mb-1.5">
-                  Recipient LTC Address
+                  Recipient {unit} Address
                 </label>
                 <Input
-                  placeholder="LTC address..."
+                  placeholder={`${unit} address...`}
                   value={to}
                   onChange={(e) => setTo(e.target.value)}
                 />
@@ -430,7 +449,7 @@ export default function WithdrawPage() {
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="text-white/40 text-xs pb-2">
-                    Balance: {balance.toFixed(8)} LTC
+                    Balance: {balance.toFixed(8)} {unit}
                   </span>
                   <Button
                     type="button"
@@ -474,7 +493,7 @@ export default function WithdrawPage() {
                 ))}
                 {currency === 'USD' && priceUsd > 0 && (
                   <span className="text-[10px] text-white/40 ml-auto">
-                    1 LTC ≈ $
+                    1 {unit} ≈ $
                     {priceUsd.toLocaleString(undefined, {
                       minimumFractionDigits: 2,
                       maximumFractionDigits: 2,
@@ -487,7 +506,7 @@ export default function WithdrawPage() {
                 <label className="block text-xs font-medium text-white/50 mb-1.5">
                   {currency === 'USD'
                     ? 'Amount to withdraw (USD)'
-                    : 'Amount to withdraw (LTC)'}
+                    : `Amount to withdraw (${unit})`}
                 </label>
                 {currency === 'USD' ? (
                   <Input
@@ -510,7 +529,7 @@ export default function WithdrawPage() {
                 )}
                 {currency === 'USD' && usdAmount && priceUsd > 0 && (
                   <p className="text-xs text-white/40 mt-1.5">
-                    ≈ {(parseFloat(usdAmount) / priceUsd).toFixed(8)} LTC
+                    ≈ {(parseFloat(usdAmount) / priceUsd).toFixed(8)} {unit}
                   </p>
                 )}
               </div>
@@ -573,7 +592,7 @@ export default function WithdrawPage() {
                 {name.trim() && <ModalRow label="Name">{name.trim()}</ModalRow>}
                 <ModalRow label="Amount">
                   <span className="font-bold text-white">
-                    {getLtcAmount().toFixed(8)} LTC
+                    {getLtcAmount().toFixed(8)} {unit}
                   </span>
                 </ModalRow>
                 {currency === 'USD' && (
@@ -585,18 +604,18 @@ export default function WithdrawPage() {
                 )}
                 {fee > 0 && (
                   <ModalRow label="Network fee">
-                    <span className="text-white/70">{fee.toFixed(8)} LTC</span>
+                    <span className="text-white/70">{fee.toFixed(8)} {unit}</span>
                   </ModalRow>
                 )}
                 <ModalRow label="Balance after">
                   <span className="text-white/70">
-                    {(balance - parseFloat(amount)).toFixed(8)} LTC
+                    {(balance - parseFloat(amount)).toFixed(8)} {unit}
                   </span>
                 </ModalRow>
               </div>
 
               <p className="text-xs text-white/40 leading-relaxed">
-                This broadcasts a real on-chain Litecoin transaction. Please
+                This broadcasts a real on-chain {unit === 'SOL' ? 'Solana' : 'Litecoin'} transaction. Please
                 double-check the recipient address before confirming.
               </p>
 

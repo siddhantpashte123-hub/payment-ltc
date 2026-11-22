@@ -6,6 +6,7 @@ import {
   explorerTxUrl,
   estimateConfirmationTime,
 } from '@/lib/blockchain'
+import { sendSol, solExplorerTxUrl, SOL_FEE_LITOSHI } from '@/lib/solana'
 
 export async function POST(request: Request) {
   try {
@@ -25,13 +26,20 @@ export async function POST(request: Request) {
       )
     }
 
-    let body: { to?: unknown; amount?: unknown; name?: unknown; note?: unknown }
+    let body: {
+      to?: unknown
+      amount?: unknown
+      name?: unknown
+      note?: unknown
+      coin?: unknown
+    }
     try {
       body = await request.json()
     } catch {
       return NextResponse.json({ error: 'Invalid request body' }, { status: 400 })
     }
 
+    const coin: 'ltc' | 'sol' = body.coin === 'sol' ? 'sol' : 'ltc'
     const to = typeof body.to === 'string' ? body.to.trim() : ''
     const amount = Number(body.amount)
     const name =
@@ -51,10 +59,12 @@ export async function POST(request: Request) {
 
     const supabase = adminClient()
 
-    // Get wallet (address + encrypted private key).
+    // Get wallet (both LTC and SOL fields).
     const { data: wallet, error: walletReadError } = await supabase
       .from('wallets')
-      .select('ltc_address, priv_key_encrypted, balance_ltc')
+      .select(
+        'ltc_address, priv_key_encrypted, balance_ltc, sol_address, sol_priv_key_encrypted, sol_balance'
+      )
       .eq('user_id', user.id)
       .maybeSingle()
 
@@ -69,7 +79,15 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Wallet not found' }, { status: 404 })
     }
 
-    const balance = Number(wallet.balance_ltc ?? 0)
+    const isSol = coin === 'sol'
+    const balance = isSol
+      ? Number(wallet.sol_balance ?? 0)
+      : Number(wallet.balance_ltc ?? 0)
+    const keyEnc = isSol
+      ? wallet.sol_priv_key_encrypted
+      : wallet.priv_key_encrypted
+    const fromAddress = isSol ? wallet.sol_address : wallet.ltc_address
+
     if (amount > balance) {
       return NextResponse.json(
         { error: 'Insufficient balance for this transaction' },
@@ -77,49 +95,72 @@ export async function POST(request: Request) {
       )
     }
 
-    if (!wallet.priv_key_encrypted) {
+    if (!keyEnc) {
       return NextResponse.json(
         { error: 'Wallet private key missing — please sign in again.' },
         { status: 500 }
       )
     }
 
-    // Decrypt private key and broadcast a real LTC transaction.
-    const wif = decryptKey(wallet.priv_key_encrypted)
-    let txid: string
+    const now = new Date().toISOString()
+    let signature: string
     let sentAmount = amount
     let feeLitoshi = 0
     let feeLtc = 0
-    try {
-      const result = await sendLtc({
-        to,
-        amount,
-        wif,
-        changeAddress: wallet.ltc_address,
-      })
-      txid = result.txid
-      feeLitoshi = result.fee
-      feeLtc = result.fee / 100_000_000
-      // When the full balance is sent, sendLtc auto-reduces the amount by
-      // the fee — use the actual amount for the debit and the record.
-      if (result.amount !== amount) {
-        sentAmount = result.amount
+
+    if (isSol) {
+      // Solana send.
+      const wif = decryptKey(keyEnc) // base64 secret key, encrypted same way
+      try {
+        const result = await sendSol({
+          to,
+          amount,
+          secretKeyB64: wif,
+        })
+        signature = result.signature
+        feeLtc = result.fee
+        feeLitoshi = SOL_FEE_LITOSHI
+      } catch (sendErr) {
+        const msg = sendErr instanceof Error ? sendErr.message : 'Send failed'
+        return NextResponse.json(
+          { error: `On-chain send failed: ${msg}` },
+          { status: 400 }
+        )
       }
-    } catch (sendErr) {
-      const msg = sendErr instanceof Error ? sendErr.message : 'Send failed'
-      return NextResponse.json(
-        { error: `On-chain send failed: ${msg}` },
-        { status: 400 }
-      )
+    } else {
+      // Litecoin send.
+      const wif = decryptKey(keyEnc)
+      try {
+        const result = await sendLtc({
+          to,
+          amount,
+          wif,
+          changeAddress: wallet.ltc_address,
+        })
+        signature = result.txid
+        feeLitoshi = result.fee
+        feeLtc = result.fee / 100_000_000
+        if (result.amount !== amount) {
+          sentAmount = result.amount
+        }
+      } catch (sendErr) {
+        const msg = sendErr instanceof Error ? sendErr.message : 'Send failed'
+        return NextResponse.json(
+          { error: `On-chain send failed: ${msg}` },
+          { status: 400 }
+        )
+      }
     }
 
     const newBalance = balance - sentAmount
-    const now = new Date().toISOString()
 
     // Deduct balance.
+    const balanceUpdate = isSol
+      ? { sol_balance: newBalance, sol_last_checked_at: now }
+      : { balance_ltc: newBalance, last_checked_at: now }
     const { error: updateError } = await supabase
       .from('wallets')
-      .update({ balance_ltc: newBalance, last_checked_at: now })
+      .update(balanceUpdate)
       .eq('user_id', user.id)
     if (updateError) {
       return NextResponse.json(
@@ -128,19 +169,22 @@ export async function POST(request: Request) {
       )
     }
 
-    // Record the send transaction with its on-chain txid.
+    // Record the send transaction with its on-chain signature.
     const { error: insertError } = await supabase.from('transactions').insert({
       wallet_id: user.id,
+      coin,
       type: 'send',
       amount_ltc: -sentAmount,
       status: 'completed',
       counterparty_address: to,
       counterparty_name: name,
       note,
-      tx_hash: txid,
+      tx_hash: signature,
       confirmations: 0,
       fee_ltc: feeLtc,
-      estimated_time: estimateConfirmationTime(0, feeLitoshi),
+      estimated_time: isSol
+        ? '~1 min'
+        : estimateConfirmationTime(0, feeLitoshi),
       created_at: now,
     })
     if (insertError) {
@@ -150,13 +194,16 @@ export async function POST(request: Request) {
       )
     }
 
+    const explorer = isSol ? solExplorerTxUrl(signature) : explorerTxUrl(signature)
+    const unit = isSol ? 'SOL' : 'LTC'
+
     return NextResponse.json({
       success: true,
       newBalance,
       sentAmount,
-      txid,
-      explorer: explorerTxUrl(txid),
-      message: `Sent ${sentAmount} LTC to ${to}`,
+      txid: signature,
+      explorer,
+      message: `Sent ${sentAmount} ${unit} to ${to}`,
     })
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error'

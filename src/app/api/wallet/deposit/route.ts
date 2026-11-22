@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { adminClient, bearerToken, getUserFromToken } from '@/lib/api'
 import { explorerAddressUrl } from '@/lib/blockchain'
+import { solExplorerAddressUrl } from '@/lib/solana'
 
 /**
  * POST /api/wallet/deposit
@@ -26,13 +27,14 @@ export async function POST(request: Request) {
       )
     }
 
-    let body: { amount?: unknown; address?: unknown; name?: unknown }
+    let body: { amount?: unknown; address?: unknown; name?: unknown; coin?: unknown }
     try {
       body = await request.json()
     } catch {
       return NextResponse.json({ error: 'Invalid request body' }, { status: 400 })
     }
 
+    const coin: 'ltc' | 'sol' = body.coin === 'sol' ? 'sol' : 'ltc'
     const amount = Number(body.amount)
     const address =
       typeof body.address === 'string' ? body.address.trim() : ''
@@ -83,6 +85,7 @@ export async function POST(request: Request) {
     // on-chain payment arrives.
     const { error: insertError } = await supabase.from('transactions').insert({
       wallet_id: user.id,
+      coin,
       type: 'deposit',
       amount_ltc: amount,
       status: 'pending',
@@ -97,12 +100,16 @@ export async function POST(request: Request) {
       )
     }
 
+    const explorer =
+      coin === 'sol' ? solExplorerAddressUrl(address) : explorerAddressUrl(address)
+    const unit = coin === 'sol' ? 'SOL' : 'LTC'
+
     return NextResponse.json({
       success: true,
       amount,
       address,
-      explorer: explorerAddressUrl(address),
-      message: `Deposit of ${amount} LTC submitted. It will be credited once the on-chain transaction confirms.`,
+      explorer,
+      message: `Deposit of ${amount} ${unit} submitted. It will be credited once the on-chain transaction confirms.`,
     })
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error'

@@ -23,10 +23,12 @@ export async function GET(request: Request) {
     }
 
     const supabase = adminClient()
+    const coin = request.url.includes('coin=sol') ? 'sol' : 'ltc'
     const { data, error } = await supabase
       .from('receive_requests')
-      .select('id, amount_ltc, note, created_at')
+      .select('id, amount_ltc, note, coin, created_at')
       .eq('user_id', user.id)
+      .eq('coin', coin)
       .order('created_at', { ascending: false })
       .limit(50)
 
@@ -69,13 +71,14 @@ export async function POST(request: Request) {
       )
     }
 
-    let body: { amount?: unknown; note?: unknown }
+    let body: { amount?: unknown; note?: unknown; coin?: unknown }
     try {
       body = await request.json()
     } catch {
       return NextResponse.json({ error: 'Invalid request body' }, { status: 400 })
     }
 
+    const coin: 'ltc' | 'sol' = body.coin === 'sol' ? 'sol' : 'ltc'
     const amount = Number(body.amount)
     const note =
       typeof body.note === 'string' && body.note.trim().length <= 200
@@ -92,8 +95,8 @@ export async function POST(request: Request) {
     const supabase = adminClient()
     const { data, error } = await supabase
       .from('receive_requests')
-      .insert({ user_id: user.id, amount_ltc: amount, note })
-      .select('id, amount_ltc, note, created_at')
+      .insert({ user_id: user.id, amount_ltc: amount, note, coin })
+      .select('id, amount_ltc, note, coin, created_at')
       .single()
 
     if (error) {

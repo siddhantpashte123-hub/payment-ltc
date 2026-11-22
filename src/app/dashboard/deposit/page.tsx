@@ -1,7 +1,7 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { Suspense, useEffect, useState } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { QRCodeSVG } from 'qrcode.react'
 import {
   useWallet,
@@ -31,9 +31,22 @@ interface ReceiptData {
 }
 
 export default function DepositPage() {
+  return (
+    <Suspense fallback={<DashboardLoading />}>
+      <DepositPageInner />
+    </Suspense>
+  )
+}
+
+function DepositPageInner() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const { data, loading, error, getAccessToken } = useWallet()
   const { toast } = useToast()
+
+  const coin: 'ltc' | 'sol' = searchParams.get('coin') === 'sol' ? 'sol' : 'ltc'
+  const unit = coin === 'sol' ? 'SOL' : 'LTC'
+  const coinData = data?.[coin]
 
   const [amount, setAmount] = useState('')
   const [address, setAddress] = useState('')
@@ -87,7 +100,7 @@ export default function DepositPage() {
   }, [receipt, getAccessToken])
 
   // Prefill the user's own deposit address once loaded.
-  const effectiveAddress = address || data?.address || ''
+  const effectiveAddress = address || coinData?.address || ''
 
   const copyAddress = () => {
     navigator.clipboard?.writeText(effectiveAddress)
@@ -97,7 +110,7 @@ export default function DepositPage() {
   }
 
   const shareAddress = () => {
-    const text = `Send Litecoin to my BlueWallet address: ${effectiveAddress}`
+    const text = `Send ${unit} to my BlueWallet address: ${effectiveAddress}`
     if (navigator.share) {
       navigator.share({ title: 'BlueWallet', text }).catch(() => {})
     } else {
@@ -133,7 +146,7 @@ export default function DepositPage() {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ amount: amt, address: addr }),
+        body: JSON.stringify({ amount: amt, address: addr, coin }),
       })
       const payload = await res.json().catch(() => ({}))
       if (!res.ok) {
@@ -159,8 +172,8 @@ export default function DepositPage() {
   return (
     <DashboardPageShell>
       <DashboardHeader
-        title="Deposit LTC"
-        subtitle="Send Litecoin to your wallet from any exchange or wallet"
+        title={`Deposit ${unit}`}
+        subtitle={`Send ${unit} to your wallet from any exchange or wallet`}
         showBack
       />
 
@@ -238,7 +251,7 @@ export default function DepositPage() {
               </div>
               <div>
                 <label className="block text-xs font-medium text-white/50 mb-1.5">
-                  Deposit Amount (LTC)
+                  Deposit Amount ({unit})
                 </label>
                 <Input
                   type="number"
@@ -261,17 +274,17 @@ export default function DepositPage() {
               </div>
               <div>
                 <label className="block text-xs font-medium text-white/50 mb-1.5">
-                  Your wallet LTC address
+                  Your wallet {unit} address
                 </label>
                 <textarea
                   value={effectiveAddress}
                   onChange={(e) => setAddress(e.target.value)}
                   rows={3}
-                  placeholder="Enter the LTC address to deposit to..."
+                  placeholder={`Enter the ${unit} address to deposit to...`}
                   className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-white placeholder-white/40 transition-all focus:outline-none focus:ring-1 focus:ring-white focus:border-transparent resize-none font-mono text-sm break-all"
                 />
                 <p className="text-xs text-white/40 mt-1.5">
-                  This is your unique BlueWallet deposit address. Only send LTC
+                  This is your unique BlueWallet deposit address. Only send {unit}
                   to this address.
                 </p>
               </div>
