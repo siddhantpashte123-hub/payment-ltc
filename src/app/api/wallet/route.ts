@@ -143,7 +143,7 @@ export async function GET(request: Request) {
     let solBalance = Number(wallet?.sol_balance ?? 0)
     let solPrivKeyEnc = wallet?.sol_priv_key_encrypted ?? null
 
-    const solNeedsGenerate = !!wallet && !solAddress
+    const solNeedsGenerate = !wallet || !solAddress
     if (solNeedsGenerate) {
       const solWallet = await generateSolWallet()
       solAddress = solWallet.address

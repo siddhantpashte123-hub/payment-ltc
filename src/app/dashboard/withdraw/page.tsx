@@ -110,7 +110,7 @@ function WithdrawPageInner() {
     return () => {
       mounted = false
     }
-  }, [getAccessToken, balance])
+  }, [getAccessToken, balance, coin])
 
   // Fetch the current coin's USD price so USD entry can be converted.
   useEffect(() => {
@@ -609,7 +609,7 @@ function WithdrawPageInner() {
                 )}
                 <ModalRow label="Balance after">
                   <span className="text-white/70">
-                    {(balance - parseFloat(amount)).toFixed(8)} {unit}
+                    {(balance - getLtcAmount()).toFixed(8)} {unit}
                   </span>
                 </ModalRow>
               </div>
