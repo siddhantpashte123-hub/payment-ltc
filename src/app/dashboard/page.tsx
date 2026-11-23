@@ -67,6 +67,34 @@ export default function DashboardPage() {
     }
   }, [])
 
+  // Low-balance alert: notify once when balance dips below a threshold.
+  // Hooks MUST be called unconditionally, before any early return (Rules of
+  // Hooks). Calling useRef/useEffect after `if (loading) return` makes React
+  // throw #310 "Rendered more hooks than during the previous render" once
+  // loading flips to false, which crashes the dashboard via the error boundary.
+  const lastLowRef = useRef<{ coin: string; notified: number } | null>(null)
+  useEffect(() => {
+    const coinData = data?.[coin]
+    if (!coinData || !data) return
+    const unit = coin === 'ltc' ? 'LTC' : 'SOL'
+    const bal = Number(coinData.balance ?? 0)
+    const threshold = coin === 'ltc' ? 0.01 : 0.001
+    const now = Date.now()
+    const prev = lastLowRef.current
+    // Only fire on a fresh crossing (previous balance not low, or different coin).
+    if (bal > 0 && bal < threshold) {
+      if (prev && prev.coin === coin && prev.notified > now - 60000) return
+      lastLowRef.current = { coin, notified: now }
+      pushNotification({
+        type: 'system',
+        title: `Low ${unit} balance`,
+        message: `Your balance is ${bal.toFixed(8)} ${unit} — consider topping up.`,
+      })
+    } else {
+      lastLowRef.current = null
+    }
+  }, [data, coin, pushNotification])
+
   if (loading) return <DashboardLoading />
 
   const coinData = data?.[coin]
@@ -91,28 +119,6 @@ export default function DashboardPage() {
   )
   const net = totals.received - totals.sent
   const unit = coin === 'ltc' ? 'LTC' : 'SOL'
-
-  // Low-balance alert: notify once when balance dips below a threshold.
-  const lastLowRef = useRef<{ coin: string; notified: number } | null>(null)
-  useEffect(() => {
-    if (!coinData || !data) return
-    const bal = Number(coinData.balance ?? 0)
-    const threshold = coin === 'ltc' ? 0.01 : 0.001
-    const now = Date.now()
-    const prev = lastLowRef.current
-    // Only fire on a fresh crossing (previous balance not low, or different coin).
-    if (bal > 0 && bal < threshold) {
-      if (prev && prev.coin === coin && prev.notified > now - 60000) return
-      lastLowRef.current = { coin, notified: now }
-      pushNotification({
-        type: 'system',
-        title: `Low ${unit} balance`,
-        message: `Your balance is ${bal.toFixed(8)} ${unit} — consider topping up.`,
-      })
-    } else {
-      lastLowRef.current = null
-    }
-  }, [coinData, data, coin, unit, pushNotification])
 
   return (
     <DashboardPageShell>
