@@ -10,8 +10,8 @@ interface AddressDisplayProps {
 }
 
 export function AddressDisplay({ address, explorerAddress }: AddressDisplayProps) {
-  const short =
-    address.slice(0, 8) + '...' + address.slice(address.length - 6)
+  const addr = address || ''
+  const short = addr.slice(0, 8) + '...' + addr.slice(addr.length - 6)
 
   return (
     <div className="premium-card p-6">

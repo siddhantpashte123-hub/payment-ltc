@@ -76,8 +76,8 @@ export function TransactionList({
       if (!query.trim()) return true
       const q = query.trim().toLowerCase()
       return (
-        tx.name?.toLowerCase().includes(q) ||
-        tx.address.toLowerCase().includes(q) ||
+        (tx.name || '').toLowerCase().includes(q) ||
+        (tx.address || '').toLowerCase().includes(q) ||
         (tx.tx_hash || '').toLowerCase().includes(q) ||
         (tx.note || '').toLowerCase().includes(q)
       )

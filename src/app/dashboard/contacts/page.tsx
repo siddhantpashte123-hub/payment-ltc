@@ -266,7 +266,7 @@ function ContactsPageInner() {
                     <p className="text-sm font-medium text-white truncate">{c.label}</p>
                     <span className="inline-flex items-center gap-1 text-[10px] text-emerald-400/80 bg-emerald-500/10 rounded-md px-1.5 py-0.5">
                       <Coins size={10} />
-                      {c.coin.toUpperCase()}
+                      {(c.coin || '').toUpperCase()}
                     </span>
                   </div>
                   <p className="text-xs text-white/40 font-mono truncate mt-0.5">
