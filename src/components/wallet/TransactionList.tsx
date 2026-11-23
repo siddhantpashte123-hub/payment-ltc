@@ -261,7 +261,7 @@ export function TransactionList({
                       : 'bg-white/5 text-white/50 border border-white/10')
                   }
                 >
-                  {isDeposit ? <ArrowUpRight size={20} /> : <ArrowDownLeft size={20} />}
+                  {isDeposit ? <ArrowDownLeft size={20} /> : <ArrowUpRight size={20} />}
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-white truncate">

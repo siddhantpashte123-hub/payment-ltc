@@ -5,7 +5,13 @@ import { redirect } from 'next/navigation'
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
   const code = searchParams.get('code')
-  const next = searchParams.get('next') ?? '/dashboard'
+  let next = searchParams.get('next') ?? '/dashboard'
+
+  // Only allow same-origin relative redirects. A crafted ?next=https://evil.com
+  // (or //evil.com) would otherwise redirect the user off-site after auth.
+  if (!next.startsWith('/') || next.startsWith('//')) {
+    next = '/dashboard'
+  }
 
   if (code) {
     // Wrap the whole Supabase session-exchange in try/catch. With a valid env

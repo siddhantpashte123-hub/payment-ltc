@@ -14,6 +14,23 @@ export interface AppNotification {
 const STORAGE_KEY = 'bw_notifications'
 const MAX_NOTIFICATIONS = 50
 
+/**
+ * Custom window event fired whenever the notification list changes. Because
+ * every useNotifications() call is an independent React state instance (the
+ * bell in the header and the page content are separate components), a push in
+ * one component must notify the others to re-read from localStorage so the
+ * bell badge updates immediately instead of only on remount.
+ */
+const NOTIF_EVENT = 'bw-notifications-change'
+
+function notifyChange() {
+  try {
+    window.dispatchEvent(new CustomEvent(NOTIF_EVENT))
+  } catch {
+    // ignore (e.g. non-browser env)
+  }
+}
+
 function load(): AppNotification[] {
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY)
@@ -91,6 +108,14 @@ export function useNotifications() {
     setPrefs(loadPreferences())
   }, [])
 
+  // Re-read from localStorage whenever any other component mutates the list,
+  // so this instance's state (e.g. the header bell) stays in sync.
+  useEffect(() => {
+    const handler = () => setNotifications(load())
+    window.addEventListener(NOTIF_EVENT, handler)
+    return () => window.removeEventListener(NOTIF_EVENT, handler)
+  }, [])
+
   const updatePrefs = useCallback((patch: Partial<NotificationPreferences>) => {
     setPrefs((prev) => {
       const next = { ...prev, ...patch }
@@ -127,6 +152,7 @@ export function useNotifications() {
         save(next)
         return next
       })
+      notifyChange()
     },
     [prefs]
   )
@@ -137,6 +163,7 @@ export function useNotifications() {
       save(next)
       return next
     })
+    notifyChange()
   }, [])
 
   const markRead = useCallback((id: string) => {
@@ -145,6 +172,7 @@ export function useNotifications() {
       save(next)
       return next
     })
+    notifyChange()
   }, [])
 
   const unread = notifications.filter((n) => !n.read).length

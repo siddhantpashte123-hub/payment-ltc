@@ -54,7 +54,7 @@ export function BalanceCard({
           </div>
           <div className="flex items-center gap-2 text-white/50">
             <ArrowDownLeft size={16} className="text-white/50" />
-            <span className="text-xs font-medium text-white/60">Send LTC anytime</span>
+            <span className="text-xs font-medium text-white/60">Send {currency} anytime</span>
           </div>
         </div>
       </div>

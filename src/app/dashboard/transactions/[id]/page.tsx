@@ -145,9 +145,9 @@ export default function TransactionDetailPage() {
                 }[tx.type]}`}
               >
                 {tx.type === 'deposit' ? (
-                  <ArrowUpRight size={30} />
-                ) : (
                   <ArrowDownLeft size={30} />
+                ) : (
+                  <ArrowUpRight size={30} />
                 )}
               </div>
               <p className="text-white/50 text-sm uppercase tracking-wider mb-2">

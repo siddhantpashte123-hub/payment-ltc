@@ -51,3 +51,10 @@ export function estimateFeeLitoshi(
   const t = FEE_TIERS[tier]
   return Math.ceil((size / 1000) * t.rate * t.buffer)
 }
+
+/**
+ * Fixed Solana base network fee in SOL (5000 lamports).
+ * Lives in fees.ts (no heavy client deps) so client components can display the
+ * SOL fee without pulling @solana/web3.js into the browser bundle.
+ */
+export const SOL_FEE_LTC = 0.000005

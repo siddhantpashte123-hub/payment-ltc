@@ -114,6 +114,10 @@ alter table public.profiles enable row level security;
 alter table public.wallets enable row level security;
 alter table public.transactions enable row level security;
 alter table public.saved_addresses enable row level security;
+-- receive_requests and app_settings must also be RLS-protected so the public
+-- anon key cannot read/write other users' rows.
+alter table public.receive_requests enable row level security;
+alter table public.app_settings enable row level security;
 
 -- Profiles: users can read/update their own profile
 create policy "Users can view own profile"
@@ -137,6 +141,18 @@ create policy "Users can view own transactions"
 -- Saved addresses: users manage their own saved addresses
 create policy "Users manage own saved addresses"
   on public.saved_addresses for all
+  using ( auth.uid() = user_id )
+  with check ( auth.uid() = user_id );
+
+-- Receive requests: users manage their own requests
+create policy "Users manage own receive requests"
+  on public.receive_requests for all
+  using ( auth.uid() = user_id )
+  with check ( auth.uid() = user_id );
+
+-- App settings: users manage their own settings
+create policy "Users manage own app settings"
+  on public.app_settings for all
   using ( auth.uid() = user_id )
   with check ( auth.uid() = user_id );
 

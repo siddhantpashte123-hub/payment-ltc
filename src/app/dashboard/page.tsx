@@ -274,6 +274,7 @@ export default function DashboardPage() {
               <AddressDisplay
                 address={coinData?.address ?? ''}
                 explorerAddress={coinData?.explorerAddress}
+                unit={unit}
               />
             </div>
           </section>

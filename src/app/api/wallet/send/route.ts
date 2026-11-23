@@ -208,7 +208,11 @@ export async function POST(request: Request) {
       }
     }
 
-    const newBalance = balance - sentAmount
+    // The network fee is a real outflow from the wallet, so it must be deducted
+    // along with the sent amount. (Previously only `sentAmount` was subtracted,
+    // leaving the stored balance overstated by the fee until the next on-chain
+    // sync — and showing a phantom `fee`-sized balance after a full send.)
+    const newBalance = balance - sentAmount - feeLtc
 
     // Deduct balance.
     const balanceUpdate = isSol
