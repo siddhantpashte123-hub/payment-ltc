@@ -59,11 +59,14 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL('/dashboard', request.url))
   }
 
-  // Protect dashboard and API routes
+  // Protect dashboard and authed API routes. /api/price is a public endpoint
+  // (used by the landing page and dashboard) so it must stay open to everyone.
+  const isApi = request.nextUrl.pathname.startsWith('/api')
+  const isPublicApi = request.nextUrl.pathname === '/api/price'
   if (
     !user &&
     (request.nextUrl.pathname.startsWith('/dashboard') ||
-      request.nextUrl.pathname.startsWith('/api'))
+      (isApi && !isPublicApi))
   ) {
     return NextResponse.redirect(new URL('/login', request.url))
   }
