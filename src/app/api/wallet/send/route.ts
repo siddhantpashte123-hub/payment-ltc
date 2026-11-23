@@ -147,9 +147,21 @@ export async function POST(request: Request) {
     let feeLitoshi = 0
     let feeLtc = 0
 
+    let wif: string
+    try {
+      wif = decryptKey(keyEnc) // base64 secret key, encrypted same way
+    } catch {
+      return NextResponse.json(
+        {
+          error:
+            'This wallet cannot be unlocked with the current server key — it was encrypted with a different secret. If you have your original recovery key, contact support to restore access to your funds.',
+        },
+        { status: 500 }
+      )
+    }
+
     if (isSol) {
       // Solana send.
-      const wif = decryptKey(keyEnc) // base64 secret key, encrypted same way
       try {
         const result = await sendSol({
           to,
@@ -168,7 +180,6 @@ export async function POST(request: Request) {
       }
     } else {
       // Litecoin send.
-      const wif = decryptKey(keyEnc)
       try {
         const result = await sendLtc({
           to,
