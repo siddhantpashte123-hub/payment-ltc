@@ -64,15 +64,24 @@ export function PricePanel({ coin = 'ltc' }: { coin?: 'ltc' | 'sol' }) {
     )
   }
 
-  if (error || !active) {
+  // Guard against a non-OK or partially-populated price response. If the price
+  // values are missing or not valid numbers (e.g. rate-limited / partial API
+  // payload), render a graceful fallback instead of throwing on .toLocaleString().
+  const hasPrice =
+    !!active &&
+    typeof active.priceInr === 'number' &&
+    typeof active.priceUsd === 'number'
+
+  if (error || !hasPrice) {
     return (
       <div className="premium-card p-5 h-44 flex items-center justify-center text-sm text-white/40">
-        {error}
+        {error || 'Price unavailable'}
       </div>
     )
   }
 
-  const change = active.change24h
+  const change =
+    typeof active.change24h === 'number' ? active.change24h : 0
   const isUp = change >= 0
   const unit = coin === 'sol' ? 'SOL' : 'LTC'
 

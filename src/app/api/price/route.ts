@@ -16,7 +16,7 @@ export async function GET() {
     const priceJson = await priceRes.json()
     const ltc = priceJson?.litecoin
     const sol = priceJson?.solana
-    if (!ltc) {
+    if (!ltc || typeof ltc.inr !== 'number' || typeof ltc.usd !== 'number') {
       return NextResponse.json({ error: 'Price not found' }, { status: 502 })
     }
 
@@ -47,15 +47,16 @@ export async function GET() {
       changeInr24h: ltc.inr_24h_change ?? ltc.usd_24h_change ?? 0,
       lastUpdated: ltc.last_updated_at,
       history,
-      sol: sol
-        ? {
-            priceInr: sol.inr,
-            priceUsd: sol.usd,
-            change24h: sol.usd_24h_change ?? 0,
-            changeInr24h: sol.inr_24h_change ?? sol.usd_24h_change ?? 0,
-            lastUpdated: sol.last_updated_at,
-          }
-        : null,
+      sol:
+        sol && typeof sol.inr === 'number' && typeof sol.usd === 'number'
+          ? {
+              priceInr: sol.inr,
+              priceUsd: sol.usd,
+              change24h: sol.usd_24h_change ?? 0,
+              changeInr24h: sol.inr_24h_change ?? sol.usd_24h_change ?? 0,
+              lastUpdated: sol.last_updated_at,
+            }
+          : null,
     })
   } catch (error) {
     console.error('Price API error:', error)

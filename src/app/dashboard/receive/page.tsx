@@ -31,6 +31,10 @@ interface ReceiveRequest {
   created_at: string
 }
 
+// Guard against null/undefined amounts from the DB so .toFixed never throws.
+const safeAmount = (a: number | null | undefined): number =>
+  typeof a === 'number' && Number.isFinite(a) ? a : 0
+
 export default function ReceivePage() {
   return (
     <Suspense fallback={<DashboardLoading />}>
@@ -120,7 +124,7 @@ function ReceivePageInner() {
   }
 
   const shareText = (req: ReceiveRequest) => {
-    const text = `Please send ${req.amount_ltc.toFixed(8)} ${unit} to my BlueWallet address: ${address}`
+    const text = `Please send ${safeAmount(req.amount_ltc).toFixed(8)} ${unit} to my BlueWallet address: ${address}`
     if (navigator.share) {
       navigator
         .share({ title: 'BlueWallet Receive Request', text })
@@ -226,7 +230,7 @@ function ReceivePageInner() {
                   <div className="flex items-start justify-between gap-4 mb-4">
                     <div>
                       <p className="text-2xl font-bold text-white">
-                        {req.amount_ltc.toFixed(8)} <span className="text-sm text-white/50">{unit}</span>
+                        {safeAmount(req.amount_ltc).toFixed(8)} <span className="text-sm text-white/50">{unit}</span>
                       </p>
                       {req.note && (
                         <p className="text-xs text-white/40 mt-1">{req.note}</p>
