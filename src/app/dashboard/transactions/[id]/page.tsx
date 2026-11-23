@@ -47,6 +47,10 @@ interface TxDetail {
   onchain_status?: 'confirmed' | 'pending' | null
 }
 
+// Guard against null/undefined amounts from the DB so .toFixed never throws.
+const safeAmount = (a: number | null | undefined): number =>
+  typeof a === 'number' && Number.isFinite(a) ? a : 0
+
 export default function TransactionDetailPage() {
   const params = useParams<{ id: string }>()
   const router = useRouter()
@@ -155,7 +159,7 @@ export default function TransactionDetailPage() {
                 }`}
               >
                 {tx.type === 'deposit' ? '+' : '−'}
-                {tx.amount.toFixed(8)} <span className="text-xl text-white/50">{unit}</span>
+                {safeAmount(tx.amount).toFixed(8)} <span className="text-xl text-white/50">{unit}</span>
               </p>
 
               <div className="flex items-center justify-center gap-2 mt-4">
@@ -290,7 +294,7 @@ export default function TransactionDetailPage() {
             {priceInr !== undefined && (
               <DetailRow label="Value (INR)">
                 <span className="font-semibold text-white">
-                  ≈ ₹{(tx.amount * priceInr).toLocaleString(undefined, {
+                  ≈ ₹{(safeAmount(tx.amount) * priceInr).toLocaleString(undefined, {
                     maximumFractionDigits: 2,
                   })}
                 </span>

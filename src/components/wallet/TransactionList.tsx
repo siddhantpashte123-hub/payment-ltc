@@ -43,6 +43,10 @@ type FilterType = 'all' | 'deposit' | 'send'
 type SortType = 'newest' | 'oldest' | 'amount'
 type PeriodType = 'all' | '7d' | '30d' | '90d'
 
+// Guard against null/undefined amounts from the DB so .toFixed never throws.
+const safeAmount = (a: number | null | undefined): number =>
+  typeof a === 'number' && Number.isFinite(a) ? a : 0
+
 export function TransactionList({
   transactions,
   pricePerCoin,
@@ -110,8 +114,8 @@ export function TransactionList({
     ]
     const rows = filtered.map((tx) => [
       tx.type,
-      tx.amount.toFixed(8),
-      pricePerCoin ? formatFiat(tx.amount * pricePerCoin, fiatCurrency) : '',
+      safeAmount(tx.amount).toFixed(8),
+      pricePerCoin ? formatFiat(safeAmount(tx.amount) * pricePerCoin, fiatCurrency) : '',
       tx.name || '',
       tx.address,
       tx.note || '',
@@ -285,11 +289,11 @@ export function TransactionList({
                     }
                   >
                     {isDeposit ? '+' : '−'}
-                    {tx.amount.toFixed(8)} {unit}
+                    {safeAmount(tx.amount).toFixed(8)} {unit}
                   </span>
                   {pricePerCoin !== undefined && (
                     <span className="text-[10px] text-white/40">
-                      ≈ {formatFiat(tx.amount * pricePerCoin, fiatCurrency)}
+                      ≈ {formatFiat(safeAmount(tx.amount) * pricePerCoin, fiatCurrency)}
                     </span>
                   )}
                   <div className="flex items-center gap-2">
