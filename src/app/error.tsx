@@ -19,9 +19,6 @@ export default function Error({
     console.error('page error:', error)
   }, [error])
 
-  const msg = error?.message || String(error)
-  const digest = error?.digest
-
   return (
     <div className="min-h-screen bg-black flex items-center justify-center px-6 relative overflow-hidden">
       <div className="fixed inset-0 -z-10 grid-bg" />
@@ -36,21 +33,10 @@ export default function Error({
         <h1 className="text-2xl font-bold text-white tracking-tight mb-3">
           Something went wrong
         </h1>
-        <p className="text-white/50 text-sm leading-relaxed mb-4">
+        <p className="text-white/50 text-sm leading-relaxed mb-8">
           This page hit an unexpected error. This is usually temporary — try
           reloading, or head back to your wallet.
         </p>
-
-        {/* TEMP diagnostic: surface the real error so it can be diagnosed. */}
-        <div className="rounded-xl border border-white/15 bg-white/[0.03] px-4 py-3 mb-6 text-left">
-          <p className="text-[10px] uppercase tracking-wider text-white/40 mb-1">
-            Error detail (diagnostic)
-          </p>
-          <p className="text-xs text-amber-300 break-words font-mono whitespace-pre-wrap">
-            {msg}
-            {digest ? `\ndigest: ${digest}` : ''}
-          </p>
-        </div>
 
         <div className="flex items-center justify-center gap-3">
           <button
