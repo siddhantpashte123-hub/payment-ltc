@@ -340,7 +340,7 @@ export interface SendResult {
 
 // Fee-tier definitions live in fees.ts (no bitcore dependency) so client
 // components can import them without pulling bitcore into the browser bundle.
-import { FEE_TIERS, type FeeTier } from './fees'
+import { FEE_TIERS, estimateFeeLitoshi, type FeeTier } from './fees'
 export { FEE_TIERS, type FeeTier }
 
 /**
@@ -366,18 +366,13 @@ export async function sendLtc(params: {
   const totalInput = utxos.reduce((s, u) => s + u.satoshis, 0)
 
   const priv = new PrivateKey(wif)
-  const tx = new Transaction()
-  tx.from(utxos)
-  tx.to(to, satoshis)
 
-  // Fee: use bitcore's own size-based estimator with the selected tier's
-  // rate + buffer. Setting _feePerKb makes _estimateFee() (and bitcore's
-  // security-margin minimum, ceil(estimate/15)) use that rate, so every
-  // tier clears the "Fee is too small" check. _estimateFee() accounts for
-  // the change-output size, so it is computed here before change is added.
+  // Fee estimate from the UTXO count + selected tier. Computed BEFORE building
+  // the tx so we know the exact fee up front. (We must NOT rely on mutating
+  // tx.outputs[0].satoshis after tx.to() — bitcore serializes the original
+  // amount, which breaks the fee==unspent check in the no-change case.)
   const tier = FEE_TIERS[feeTier]
-  tx._feePerKb = tier.rate
-  const fee = Math.ceil(tx._estimateFee() * tier.buffer)
+  const fee = estimateFeeLitoshi(utxos.length, feeTier)
 
   // Auto-reduce the amount if the requested amount + fee exceeds the funds.
   // This makes "send the full balance" work: fee is deducted from the amount.
@@ -397,12 +392,21 @@ export async function sendLtc(params: {
     )
   }
 
-  tx.outputs[0].satoshis = actualSatoshis
+  // Build the transaction with the FINAL output amount (not the requested one).
+  const tx = new Transaction()
+  tx.from(utxos)
+  tx.to(to, actualSatoshis)
 
-  // Set the fee BEFORE adding change so the change amount uses the real fee.
+  // _feePerKb makes bitcore's internal _estimateFee() (used by the
+  // security-margin minimum AND the "fee too large" check) use this tier's
+  // rate, so the explicit fee clears both checks.
+  tx._feePerKb = tier.rate
   tx.fee(fee)
 
-  // Only add a change output if there's a remainder.
+  // Only add a change output if there's a remainder. When change is added,
+  // bitcore sets change = available - fee, so unspent == fee automatically.
+  // When there's no change (full-balance send), actualSatoshis = totalInput - fee,
+  // so unspent = totalInput - actualSatoshis = fee — also consistent.
   if (totalInput - actualSatoshis - fee > 0) {
     tx.change(changeAddress)
   }
