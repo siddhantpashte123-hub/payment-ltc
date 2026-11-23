@@ -359,12 +359,18 @@ export async function sendLtc(params: {
   const utxos = await getUnspent(changeAddress)
   const totalInput = utxos.reduce((s, u) => s + u.satoshis, 0)
 
-  // Estimate fee: ~1 litoshi/byte (Litecoin fees are very low — this keeps
-  // the withdrawal fee minimal while still confirming in a reasonable time).
-  // Tx size ~ inputs*148 + outputs*34 + 10 bytes. Floor of 300 litoshi covers
-  // small transactions and stays above Litecoin's typical relay minimum.
-  const approxSize = utxos.length * 148 + 2 * 34 + 10
-  const fee = Math.max(300, approxSize * 1)
+  const priv = new PrivateKey(wif)
+  const tx = new Transaction()
+  tx.from(utxos)
+  tx.to(to, satoshis)
+
+  // Fee: use bitcore's own size-based estimator (FEE_PER_KB = 10000
+  // litoshi/kb) with a 10% buffer. The old 300-litoshi floor was below
+  // bitcore's security-margin minimum (ceil(estimate / 15)) and made small
+  // transactions throw "Fee is too small" on serialize. _estimateFee()
+  // already accounts for the change-output size, so it is computed here
+  // before the change output is added.
+  const fee = Math.ceil(tx._estimateFee() * 1.1)
 
   // Auto-reduce the amount if the requested amount + fee exceeds the funds.
   // This makes "send the full balance" work: fee is deducted from the amount.
@@ -384,16 +390,15 @@ export async function sendLtc(params: {
     )
   }
 
-  const priv = new PrivateKey(wif)
-  const tx = new Transaction()
-  tx.from(utxos)
-  tx.to(to, actualSatoshis)
+  tx.outputs[0].satoshis = actualSatoshis
+
+  // Set the fee BEFORE adding change so the change amount uses the real fee.
+  tx.fee(fee)
 
   // Only add a change output if there's a remainder.
   if (totalInput - actualSatoshis - fee > 0) {
     tx.change(changeAddress)
   }
-  tx.fee(fee)
   tx.sign(priv)
 
   const txHex = tx.serialize()

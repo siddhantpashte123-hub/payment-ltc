@@ -17,5 +17,9 @@ declare module 'bitcore-lib-litecoin' {
     fee(fee: number): this
     sign(privateKey: PrivateKey): this
     serialize(): string
+    /** Size-based fee estimate in litoshi (accounts for change output). */
+    _estimateFee(): number
+    /** Built outputs (tx.to adds an entry; change() adds one). */
+    outputs: Array<{ satoshis: number }>
   }
 }
