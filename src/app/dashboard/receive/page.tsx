@@ -13,6 +13,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useToast } from '@/components/ui/toast'
+import { copyText } from '@/lib/clipboard'
 import {
   ArrowDownLeft,
   AlertCircle,
@@ -123,24 +124,28 @@ function ReceivePageInner() {
     }
   }
 
-  const shareText = (req: ReceiveRequest) => {
+  const shareText = async (req: ReceiveRequest) => {
     const text = `Please send ${safeAmount(req.amount_ltc).toFixed(8)} ${unit} to my BlueWallet address: ${address}`
     if (navigator.share) {
       navigator
         .share({ title: 'BlueWallet Receive Request', text })
         .catch(() => {})
     } else {
-      navigator.clipboard?.writeText(text)
-      toast('Request link copied')
+      const ok = await copyText(text)
+      toast(ok ? 'Request link copied' : 'Copy failed')
     }
   }
 
-  const copyLink = (req: ReceiveRequest) => {
+  const copyLink = async (req: ReceiveRequest) => {
     const link = `${window.location.origin}/dashboard/receive?amount=${req.amount_ltc}`
-    navigator.clipboard?.writeText(link)
-    setCopiedId(req.id)
-    setTimeout(() => setCopiedId(null), 2000)
-    toast('Link copied')
+    const ok = await copyText(link)
+    if (ok) {
+      setCopiedId(req.id)
+      setTimeout(() => setCopiedId(null), 2000)
+      toast('Link copied')
+    } else {
+      toast('Copy failed')
+    }
   }
 
   if (loading) return <DashboardLoading />

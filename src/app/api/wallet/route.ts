@@ -208,7 +208,12 @@ export async function GET(request: Request) {
           })
         }
 
-        // Cleanup phantom NULL tx_hash deposit rows (old safety-net artifacts).
+        // Cleanup stale phantom NULL tx_hash deposit rows (old safety-net
+        // artifacts). Only remove ones older than 24h so freshly-created
+        // pending deposit intents (POST /api/wallet/deposit) aren't wiped
+        // before they can be matched to an on-chain transaction.
+        const staleCutoff = new Date(Date.now() - 24 * 60 * 60 * 1000)
+          .toISOString()
         await supabase
           .from('transactions')
           .delete()
@@ -216,6 +221,7 @@ export async function GET(request: Request) {
           .eq('coin', 'ltc')
           .eq('type', 'deposit')
           .is('tx_hash', null)
+          .lt('created_at', staleCutoff)
 
         ltcBalance = onchainBalance
         await supabase

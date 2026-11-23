@@ -12,6 +12,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useToast } from '@/components/ui/toast'
+import { copyText } from '@/lib/clipboard'
 import { FiatToggle } from '@/components/wallet/FiatToggle'
 import {
   UserPlus,
@@ -141,10 +142,12 @@ function ContactsPageInner() {
     }
   }
 
-  const copy = (addr: string, id: string) => {
-    navigator.clipboard?.writeText(addr)
-    setCopiedId(id)
-    setTimeout(() => setCopiedId(null), 1500)
+  const copy = async (addr: string, id: string) => {
+    const ok = await copyText(addr)
+    if (ok) {
+      setCopiedId(id)
+      setTimeout(() => setCopiedId(null), 1500)
+    }
   }
 
   const shown = filterCoin ? contacts.filter((c) => c.coin === filterCoin) : contacts

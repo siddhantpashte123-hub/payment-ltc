@@ -3,6 +3,7 @@
 import { Button } from '@/components/ui/button'
 import { Copy, Check } from 'lucide-react'
 import { useState } from 'react'
+import { copyText } from '@/lib/clipboard'
 
 interface CopyButtonProps {
   value: string
@@ -13,9 +14,11 @@ export function CopyButton({ value, size = 'default' }: CopyButtonProps) {
   const [copied, setCopied] = useState(false)
 
   const handleCopy = async () => {
-    await navigator.clipboard.writeText(value)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
+    const ok = await copyText(value)
+    if (ok) {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    }
   }
 
   return (

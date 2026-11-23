@@ -13,6 +13,8 @@ interface ReceiptProps {
   /** Optional live status: when true, shows an animated "confirming" progress */
   live?: boolean
   onBack?: () => void
+  /** Coin unit label (e.g. 'LTC' or 'SOL'). */
+  unit?: string
 }
 
 export function Receipt({
@@ -24,6 +26,7 @@ export function Receipt({
   status,
   live,
   onBack,
+  unit = 'LTC',
 }: ReceiptProps) {
   const isDeposit = type === 'deposit'
   const isConfirming = status === 'pending' && live
@@ -34,7 +37,7 @@ export function Receipt({
       '==============================',
       '',
       `Type:          ${isDeposit ? 'Deposit' : 'Withdrawal (Send)'}`,
-      `Amount:        ${amount.toFixed(8)} LTC`,
+      `Amount:        ${amount.toFixed(8)} ${unit}`,
       `Counterparty:  ${counterparty || '—'}`,
       `Status:        ${status === 'completed' ? 'Completed' : 'Pending'}`,
       `Date:          ${new Date().toLocaleString()}`,
@@ -117,7 +120,7 @@ export function Receipt({
               : 'Payment Submitted'}
           </h2>
           <p className="text-white/50 text-sm mt-1">
-            {isDeposit ? 'Deposit received' : 'LTC sent'} — your receipt
+            {isDeposit ? 'Deposit received' : `${unit} sent`} — your receipt
           </p>
         </div>
 
@@ -138,7 +141,7 @@ export function Receipt({
             Amount
           </p>
           <p className="text-3xl font-bold text-white tracking-tight">
-            {amount.toFixed(8)} <span className="text-lg text-white/50">LTC</span>
+            {amount.toFixed(8)} <span className="text-lg text-white/50">{unit}</span>
           </p>
         </div>
 

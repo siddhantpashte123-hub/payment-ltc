@@ -15,6 +15,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useToast } from '@/components/ui/toast'
 import { useNotifications } from '@/lib/notifications'
+import { copyText } from '@/lib/clipboard'
 import {
   ArrowDownLeft,
   AlertCircle,
@@ -107,20 +108,24 @@ function DepositPageInner() {
   // Prefill the user's own deposit address once loaded.
   const effectiveAddress = address || coinData?.address || ''
 
-  const copyAddress = () => {
-    navigator.clipboard?.writeText(effectiveAddress)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
-    toast('Address copied')
+  const copyAddress = async () => {
+    const ok = await copyText(effectiveAddress)
+    if (ok) {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+      toast('Address copied')
+    } else {
+      toast('Copy failed')
+    }
   }
 
-  const shareAddress = () => {
+  const shareAddress = async () => {
     const text = `Send ${unit} to my BlueWallet address: ${effectiveAddress}`
     if (navigator.share) {
       navigator.share({ title: 'BlueWallet', text }).catch(() => {})
     } else {
-      navigator.clipboard?.writeText(text)
-      toast('Share text copied')
+      const ok = await copyText(text)
+      toast(ok ? 'Share text copied' : 'Copy failed')
     }
   }
 
@@ -205,6 +210,7 @@ function DepositPageInner() {
             explorer={receipt.explorer}
             status={confirmed ? 'completed' : 'pending'}
             live={!confirmed}
+            unit={unit}
             onBack={() => router.push('/dashboard')}
           />
           {!confirmed && (

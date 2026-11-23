@@ -7,6 +7,9 @@ import {
   Transaction,
   type TransactionResponse,
 } from '@solana/web3.js'
+import { SOL_FEE_LTC } from './fees'
+// Re-export so existing server-side imports from '@/lib/solana' keep working.
+export { SOL_FEE_LTC }
 
 /**
  * Solana (SOL) blockchain engine.
@@ -26,7 +29,6 @@ const SOLANA_RPC_URL =
 const SYSTEM_PROGRAM_ID = '11111111111111111111111111111111'
 
 /** Fixed base network fee in SOL (5000 lamports). */
-export const SOL_FEE_LTC = 0.000005
 export const SOL_FEE_LITOSHI = 5000 // == SOL_FEE_LTC * 1e8
 
 function getConnection(): Connection {

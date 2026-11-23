@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useToast } from '@/components/ui/toast'
 import { useNotifications } from '@/lib/notifications'
+import { copyText } from '@/lib/clipboard'
 import { FiatToggle } from '@/components/wallet/FiatToggle'
 import {
   Shield,
@@ -458,9 +459,9 @@ function SettingsPageInner() {
                     <Input value={exportData.ltcAddress} readOnly className="font-mono text-xs" />
                     <button
                       type="button"
-                      onClick={() => {
-                        navigator.clipboard?.writeText(exportData.ltcAddress)
-                        toast('Address copied')
+                      onClick={async () => {
+                        const ok = await copyText(exportData.ltcAddress)
+                        toast(ok ? 'Address copied' : 'Copy failed')
                       }}
                       className="flex-shrink-0 text-white/40 hover:text-white"
                     >
@@ -489,10 +490,10 @@ function SettingsPageInner() {
                       </button>
                       <button
                         type="button"
-                        onClick={() => {
+                        onClick={async () => {
                           if (exportData.ltcWif) {
-                            navigator.clipboard?.writeText(exportData.ltcWif)
-                            toast('WIF copied')
+                            const ok = await copyText(exportData.ltcWif)
+                            toast(ok ? 'WIF copied' : 'Copy failed')
                           }
                         }}
                         className="flex-shrink-0 text-white/40 hover:text-white"
@@ -516,9 +517,9 @@ function SettingsPageInner() {
                       />
                       <button
                         type="button"
-                        onClick={() => {
+                        onClick={async () => {
                           if (exportData.solSecret) {
-                            navigator.clipboard?.writeText(exportData.solSecret)
+                            await copyText(exportData.solSecret)
                           }
                         }}
                         className="flex-shrink-0 text-white/40 hover:text-white"

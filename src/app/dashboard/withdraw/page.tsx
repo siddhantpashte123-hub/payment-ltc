@@ -14,7 +14,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useToast } from '@/components/ui/toast'
 import { useNotifications } from '@/lib/notifications'
-import { FEE_TIERS } from '@/lib/fees'
+import { FEE_TIERS, SOL_FEE_LTC } from '@/lib/fees'
 import {
   User,
   AlertCircle,
@@ -31,6 +31,7 @@ interface SavedAddress {
   id: string
   label: string
   address: string
+  coin?: 'ltc' | 'sol'
 }
 
 interface ReceiptData {
@@ -214,7 +215,7 @@ function WithdrawPageInner() {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ label, address: to.trim() }),
+        body: JSON.stringify({ label, address: to.trim(), coin }),
       })
       if (res.ok) {
         const payload = await res.json()
@@ -245,6 +246,13 @@ function WithdrawPageInner() {
   const tierData = feeTiers[feeTier]
   const tierFee = tierData?.fee ?? fee
   const tierMax = tierData?.maxSendable ?? maxSendable
+
+  // Network fee for the selected coin: LTC uses the selected tier's fee,
+  // SOL uses the fixed base network fee. Used for the "Balance after" math.
+  const networkFee = coin === 'ltc' ? tierFee : SOL_FEE_LTC
+
+  // Saved addresses for the current coin only (the saved list is per-coin).
+  const savedForCoin = saved.filter((a) => (a.coin ?? 'ltc') === coin)
 
   // Address verification: warn if the recipient isn't a saved contact.
   const isKnown =
@@ -356,12 +364,13 @@ function WithdrawPageInner() {
           txHash={receipt.txHash}
           explorer={receipt.explorer}
           status="completed"
+          unit={unit}
           onBack={() => router.push('/dashboard')}
         />
       ) : (
         <div className="max-w-xl mx-auto">
           {/* Saved addresses */}
-          {saved.length > 0 && (
+          {savedForCoin.length > 0 && (
             <div className="glass-panel p-6 md:p-7 space-y-3 mb-6">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
@@ -403,7 +412,7 @@ function WithdrawPageInner() {
               )}
 
               <div className="flex flex-wrap gap-2">
-                {saved.map((a) => (
+                {savedForCoin.map((a) => (
                   <div
                     key={a.id}
                     className="inline-flex items-center gap-2 bg-white/5 border border-white/10 rounded-lg pl-3 pr-2 py-1.5 hover:bg-white/10 transition-colors group"
@@ -693,16 +702,19 @@ function WithdrawPageInner() {
                     </span>
                   </ModalRow>
                 )}
-                {tierFee > 0 && (
+                {networkFee > 0 && (
                   <ModalRow label="Network fee">
                     <span className="text-white/70">
-                      {tierFee.toFixed(8)} {unit} · {FEE_TIERS[feeTier].label}
+                      {networkFee.toFixed(8)} {unit}
+                      {coin === 'ltc'
+                        ? ` · ${FEE_TIERS[feeTier].label}`
+                        : ' · base fee'}
                     </span>
                   </ModalRow>
                 )}
                 <ModalRow label="Balance after">
                   <span className="text-white/70">
-                    {(balance - getLtcAmount()).toFixed(8)} {unit}
+                    {(balance - getLtcAmount() - networkFee).toFixed(8)} {unit}
                   </span>
                 </ModalRow>
               </div>
