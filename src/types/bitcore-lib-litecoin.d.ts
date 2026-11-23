@@ -19,6 +19,8 @@ declare module 'bitcore-lib-litecoin' {
     serialize(): string
     /** Size-based fee estimate in litoshi (accounts for change output). */
     _estimateFee(): number
+    /** Fee rate used by _estimateFee (litoshi per kb). */
+    _feePerKb: number
     /** Built outputs (tx.to adds an entry; change() adds one). */
     outputs: Array<{ satoshis: number }>
   }

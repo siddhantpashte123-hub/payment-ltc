@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { adminClient, bearerToken, getUserFromToken } from '@/lib/api'
 import { getUnspent } from '@/lib/blockchain'
+import { estimateFeeLitoshi, FEE_TIERS } from '@/lib/fees'
 import { SOL_FEE_LTC } from '@/lib/solana'
 
 const LITOSHI_PER_LTC = 100_000_000 // 1 LTC = 1e8 litoshis
@@ -66,27 +67,32 @@ export async function GET(request: Request) {
       })
     }
 
-    // Litecoin: estimate from UTXOs.
+    // Litecoin: estimate from UTXOs, with fee-tier options.
     const utxos = await getUnspent((wallet as { ltc_address: string }).ltc_address)
     const totalInput = utxos.reduce((s, u) => s + u.satoshis, 0)
     const totalInputLtc = totalInput / LITOSHI_PER_LTC
 
-    // Fee estimate: ~1 litoshi/byte (Litecoin fees are very low — keeps the
-    // withdrawal fee minimal while still confirming in reasonable time).
-    // Floor of 300 litoshi covers small transactions.
-    const approxSize = utxos.length * 148 + 2 * 34 + 10
-    const fee = Math.max(300, approxSize * 1)
-
     const balance = Number((wallet as { balance_ltc?: number }).balance_ltc ?? 0)
-    const feeLtc = fee / LITOSHI_PER_LTC
-    const maxSendable = Math.max(0, Math.min(balance, totalInputLtc - feeLtc))
+
+    // Build fee options for each tier (litoshi -> LTC).
+    const tiers: Record<string, { fee: number; maxSendable: number }> = {}
+    for (const [tier, def] of Object.entries(FEE_TIERS)) {
+      const feeLitoshi = estimateFeeLitoshi(utxos.length, tier as never)
+      const feeLtc = feeLitoshi / LITOSHI_PER_LTC
+      tiers[tier] = {
+        fee: feeLtc,
+        maxSendable: Math.max(0, Math.min(balance, totalInputLtc - feeLtc)),
+      }
+    }
+    const defaultFee = tiers.normal.fee
 
     return NextResponse.json({
-      fee: feeLtc,
-      maxSendable,
+      fee: defaultFee,
+      maxSendable: tiers.normal.maxSendable,
       balance,
       utxoCount: utxos.length,
       coin,
+      tiers,
     })
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error'

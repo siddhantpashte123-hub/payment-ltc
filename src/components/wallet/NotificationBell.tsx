@@ -8,6 +8,7 @@ const ICONS: Record<AppNotification['type'], string> = {
   deposit: '🟢',
   send: '🔵',
   system: '🟣',
+  price: '📈',
 }
 
 export function NotificationBell() {
