@@ -14,6 +14,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useToast } from '@/components/ui/toast'
 import { useNotifications } from '@/lib/notifications'
+import { FEE_TIERS } from '@/lib/fees'
 import {
   User,
   AlertCircle,
@@ -84,6 +85,13 @@ function WithdrawPageInner() {
   // Fee estimate + max sendable amount (balance minus fee) from the API.
   const [fee, setFee] = useState(0)
   const [maxSendable, setMaxSendable] = useState(0)
+  const [feeTiers, setFeeTiers] = useState<
+    Record<string, { fee: number; maxSendable: number }>
+  >({})
+  const [feeTier, setFeeTier] = useState<'economy' | 'normal' | 'fast'>('normal')
+  const [savedAddresses, setSavedAddresses] = useState<
+    Array<{ address: string }>
+  >([])
 
   const balance = coinData?.balance ?? 0
 
@@ -100,6 +108,7 @@ function WithdrawPageInner() {
         if (res.ok) {
           const payload = await res.json()
           if (mounted) {
+            setFeeTiers(payload.tiers || {})
             setFee(Number(payload.fee) || 0)
             setMaxSendable(Number(payload.maxSendable) || 0)
           }
@@ -113,6 +122,27 @@ function WithdrawPageInner() {
       mounted = false
     }
   }, [getAccessToken, balance, coin])
+
+  // Load saved addresses to verify the recipient (typo/scam warning).
+  useEffect(() => {
+    const loadSavedForVerify = async () => {
+      const token = await getAccessToken()
+      if (!token) return
+      try {
+        const res = await fetch('/api/wallet/saved-addresses', {
+          headers: { Authorization: `Bearer ${token}` },
+          cache: 'no-store',
+        })
+        if (res.ok) {
+          const payload = await res.json()
+          setSavedAddresses((payload.addresses || []).map((a: { address: string }) => a))
+        }
+      } catch {
+        // ignore
+      }
+    }
+    loadSavedForVerify()
+  }, [getAccessToken])
 
   // Fetch the current coin's USD price so USD entry can be converted.
   useEffect(() => {
@@ -211,6 +241,18 @@ function WithdrawPageInner() {
     }
   }
 
+  // Current tier's fee + max sendable (fee differs per tier).
+  const tierData = feeTiers[feeTier]
+  const tierFee = tierData?.fee ?? fee
+  const tierMax = tierData?.maxSendable ?? maxSendable
+
+  // Address verification: warn if the recipient isn't a saved contact.
+  const isKnown =
+    savedAddresses.some((a) => a.address.toLowerCase() === to.trim().toLowerCase()) ||
+    to.trim() === coinData?.address
+  const showVerifyWarning =
+    to.trim().length > 0 && savedAddresses.length > 0 && !isKnown
+
   const validate = () => {
     setFormError('')
     const amt = getLtcAmount()
@@ -227,8 +269,8 @@ function WithdrawPageInner() {
       setFormError('Please enter a valid amount')
       return false
     }
-    // Max sendable is balance minus fee (fee is paid from the same UTXOs).
-    if (amt > (maxSendable > 0 ? maxSendable : balance)) {
+    // Max sendable is balance minus fee for the selected tier.
+    if (amt > (tierMax > 0 ? tierMax : balance)) {
       setFormError(
         'Insufficient balance — amount exceeds what can be sent after the network fee'
       )
@@ -260,6 +302,7 @@ function WithdrawPageInner() {
           to: to.trim(),
           amount: amt,
           coin,
+          feeTier,
           name: name.trim() || undefined,
           note: note.trim() || undefined,
         }),
@@ -406,6 +449,13 @@ function WithdrawPageInner() {
                   value={to}
                   onChange={(e) => setTo(e.target.value)}
                 />
+                {showVerifyWarning && (
+                  <p className="text-xs text-amber-400/90 mt-1.5 flex items-center gap-1">
+                    <AlertCircle size={11} className="flex-shrink-0" />
+                    This address isn't in your Contacts. Double-check it before
+                    sending — a wrong address can't be recovered.
+                  </p>
+                )}
               </div>
               <div>
                 <label className="block text-xs font-medium text-white/50 mb-1.5">
@@ -463,16 +513,12 @@ function WithdrawPageInner() {
                     variant="ghost"
                     size="sm"
                     onClick={() => {
+                      const max = tierMax > 0 ? tierMax : balance
                       if (currency === 'USD') {
-                        const maxUsd =
-                          priceUsd > 0
-                            ? (maxSendable > 0 ? maxSendable : balance) * priceUsd
-                            : 0
+                        const maxUsd = priceUsd > 0 ? max * priceUsd : 0
                         setUsdAmount(maxUsd.toFixed(2))
                       } else {
-                        setAmount(
-                          (maxSendable > 0 ? maxSendable : balance).toFixed(8)
-                        )
+                        setAmount(max.toFixed(8))
                       }
                     }}
                     className="mb-0.5"
@@ -481,6 +527,44 @@ function WithdrawPageInner() {
                   </Button>
                 </div>
               </div>
+
+              {/* Fee tier selector (LTC only) */}
+              {coin === 'ltc' && Object.keys(feeTiers).length > 0 && (
+                <div>
+                  <label className="block text-xs font-medium text-white/50 mb-1.5">
+                    Fee Priority
+                  </label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {(['economy', 'normal', 'fast'] as const).map((t) => {
+                      const def = FEE_TIERS[t]
+                      const td = feeTiers[t]
+                      return (
+                        <button
+                          key={t}
+                          type="button"
+                          onClick={() => setFeeTier(t)}
+                          className={`px-3 py-2 rounded-lg text-xs font-semibold transition-colors text-left ${""}
+                            ${
+                              feeTier === t
+                                ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                                : 'bg-white/5 text-white/50 border border-white/10 hover:bg-white/10'
+                            }`}
+                        >
+                          <span className="block">{def.label}</span>
+                          {td && (
+                            <span className="block text-[10px] font-normal text-white/40 mt-0.5">
+                              ~{(td.fee * 100_000_000).toFixed(0)} litoshi
+                            </span>
+                          )}
+                        </button>
+                      )
+                    })}
+                  </div>
+                  <p className="text-[10px] text-white/40 mt-1.5">
+                    {FEE_TIERS[feeTier].hint} · fee {tierFee.toFixed(8)} {unit}
+                  </p>
+                </div>
+              )}
 
               {/* Currency toggle: LTC or USD */}
               <div className="flex items-center gap-2">
@@ -609,9 +693,11 @@ function WithdrawPageInner() {
                     </span>
                   </ModalRow>
                 )}
-                {fee > 0 && (
+                {tierFee > 0 && (
                   <ModalRow label="Network fee">
-                    <span className="text-white/70">{fee.toFixed(8)} {unit}</span>
+                    <span className="text-white/70">
+                      {tierFee.toFixed(8)} {unit} · {FEE_TIERS[feeTier].label}
+                    </span>
                   </ModalRow>
                 )}
                 <ModalRow label="Balance after">

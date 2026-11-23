@@ -32,6 +32,7 @@ export async function POST(request: Request) {
       name?: unknown
       note?: unknown
       coin?: unknown
+      feeTier?: unknown
     }
     try {
       body = await request.json()
@@ -42,6 +43,10 @@ export async function POST(request: Request) {
     const coin: 'ltc' | 'sol' = body.coin === 'sol' ? 'sol' : 'ltc'
     const to = typeof body.to === 'string' ? body.to.trim() : ''
     const amount = Number(body.amount)
+    const feeTier: 'economy' | 'normal' | 'fast' =
+      body.feeTier === 'economy' || body.feeTier === 'fast'
+        ? body.feeTier
+        : 'normal'
     const name =
       typeof body.name === 'string' && body.name.trim().length <= 60
         ? body.name.trim()
@@ -186,6 +191,7 @@ export async function POST(request: Request) {
           amount,
           wif,
           changeAddress: wallet.ltc_address,
+          feeTier,
         })
         signature = result.txid
         feeLitoshi = result.fee

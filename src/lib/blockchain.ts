@@ -338,6 +338,11 @@ export interface SendResult {
   amount: number
 }
 
+// Fee-tier definitions live in fees.ts (no bitcore dependency) so client
+// components can import them without pulling bitcore into the browser bundle.
+import { FEE_TIERS, type FeeTier } from './fees'
+export { FEE_TIERS, type FeeTier }
+
 /**
  * Build, sign, and broadcast a real Litecoin transaction.
  * Selects UTXOs, pays a modest fee, returns change to the sender address.
@@ -352,8 +357,9 @@ export async function sendLtc(params: {
   amount: number
   wif: string
   changeAddress: string
+  feeTier?: FeeTier
 }): Promise<SendResult> {
-  const { to, amount, wif, changeAddress } = params
+  const { to, amount, wif, changeAddress, feeTier = 'normal' } = params
   let satoshis = Math.floor(amount * LITOSHI_PER_LTC)
 
   const utxos = await getUnspent(changeAddress)
@@ -364,13 +370,14 @@ export async function sendLtc(params: {
   tx.from(utxos)
   tx.to(to, satoshis)
 
-  // Fee: use bitcore's own size-based estimator (FEE_PER_KB = 10000
-  // litoshi/kb) with a 10% buffer. The old 300-litoshi floor was below
-  // bitcore's security-margin minimum (ceil(estimate / 15)) and made small
-  // transactions throw "Fee is too small" on serialize. _estimateFee()
-  // already accounts for the change-output size, so it is computed here
-  // before the change output is added.
-  const fee = Math.ceil(tx._estimateFee() * 1.1)
+  // Fee: use bitcore's own size-based estimator with the selected tier's
+  // rate + buffer. Setting _feePerKb makes _estimateFee() (and bitcore's
+  // security-margin minimum, ceil(estimate/15)) use that rate, so every
+  // tier clears the "Fee is too small" check. _estimateFee() accounts for
+  // the change-output size, so it is computed here before change is added.
+  const tier = FEE_TIERS[feeTier]
+  tx._feePerKb = tier.rate
+  const fee = Math.ceil(tx._estimateFee() * tier.buffer)
 
   // Auto-reduce the amount if the requested amount + fee exceeds the funds.
   // This makes "send the full balance" work: fee is deducted from the amount.

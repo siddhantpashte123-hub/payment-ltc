@@ -55,6 +55,27 @@ export default function DashboardPage() {
         if (!res.ok) return
         const p = await res.json()
         if (mounted) setPrice(p)
+
+        // Price alert: check stored LTC target against live price.
+        try {
+          const raw = window.localStorage.getItem('bw_price_alert_inr')
+          const target = raw ? Number(raw) : null
+          if (target != null && isFinite(target) && target > 0) {
+            const current = Number(p.priceInr) || 0
+            if (current >= target && !alertFiredRef.current) {
+              alertFiredRef.current = true
+              pushNotification({
+                type: 'price',
+                title: 'Price alert reached',
+                message: `LTC is now ₹${current.toFixed(2)} — reached your ₹${target.toFixed(2)} target.`,
+              })
+            } else if (current < target) {
+              alertFiredRef.current = false
+            }
+          }
+        } catch {
+          // ignore
+        }
       } catch {
         // price is optional; keep last value
       }
@@ -73,6 +94,7 @@ export default function DashboardPage() {
   // throw #310 "Rendered more hooks than during the previous render" once
   // loading flips to false, which crashes the dashboard via the error boundary.
   const lastLowRef = useRef<{ coin: string; notified: number } | null>(null)
+  const alertFiredRef = useRef(false)
   useEffect(() => {
     const coinData = data?.[coin]
     if (!coinData || !data) return
@@ -281,6 +303,13 @@ export default function DashboardPage() {
               className="text-xs text-white/40 hover:text-white/70 transition-colors"
             >
               Contacts
+            </a>
+            <span className="text-white/15">·</span>
+            <a
+              href="/dashboard/help"
+              className="text-xs text-white/40 hover:text-white/70 transition-colors"
+            >
+              Help
             </a>
             <span className="text-white/15">·</span>
             <a

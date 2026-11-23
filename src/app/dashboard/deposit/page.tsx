@@ -23,6 +23,7 @@ import {
   Check,
   QrCode,
   Share2,
+  RefreshCw,
 } from 'lucide-react'
 
 interface ReceiptData {
@@ -58,56 +59,49 @@ function DepositPageInner() {
   const [confirmed, setConfirmed] = useState(false)
   const [copied, setCopied] = useState(false)
 
-  // Poll the wallet for on-chain confirmation of the pending deposit.
+  // Poll for on-chain confirmation of the pending deposit. Uses the
+  // direct /api/wallet/deposit/check endpoint (on-chain check, no 2-min
+  // staleness gate) so the deposit confirms as soon as the on-chain tx
+  // has a confirmation — not delayed by the wallet sync gate.
+  const checkDeposit = async () => {
+    const token = await getAccessToken()
+    if (!token || !receipt) return
+    try {
+      const res = await fetch('/api/wallet/deposit/check', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ amount: receipt.amount, coin }),
+      })
+      if (!res.ok) return
+      const payload = await res.json()
+      if (payload.confirmed && receipt) {
+        setConfirmed(true)
+        pushNotification({
+          type: 'deposit',
+          title: `${unit} deposit received`,
+          message: `${receipt.amount.toFixed(8)} ${unit} credited to your wallet`,
+        })
+      }
+    } catch {
+      // ignore
+    }
+  }
+
   useEffect(() => {
     if (!receipt) return
     let mounted = true
-
-    const check = async () => {
-      const token = await getAccessToken()
-      if (!token) return
-      try {
-        const res = await fetch('/api/wallet', {
-          headers: { Authorization: `Bearer ${token}` },
-          cache: 'no-store',
-        })
-        if (!res.ok) return
-        const wallet = await res.json()
-        const txs = wallet.transactions || []
-        // Look for a completed deposit matching the amount AND coin. (A
-        // completed deposit row stores the sender's address, so we match on
-        // amount + coin + type + status, not on the deposit address.)
-        const found = txs.find(
-          (t: {
-            coin: string
-            type: string
-            amount: number
-            status: string
-          }) =>
-            t.coin === coin &&
-            t.type === 'deposit' &&
-            Math.abs(t.amount - receipt.amount) < 1e-8 &&
-            t.status === 'completed'
-        )
-        if (found && mounted) {
-          setConfirmed(true)
-          pushNotification({
-            type: 'deposit',
-            title: `${unit} deposit received`,
-            message: `${receipt.amount.toFixed(8)} ${unit} credited to your wallet`,
-          })
-        }
-      } catch {
-        // ignore
-      }
-    }
-
-    check()
-    const id = setInterval(check, 15000)
+    checkDeposit()
+    const id = setInterval(() => {
+      if (mounted) checkDeposit()
+    }, 10000)
     return () => {
       mounted = false
       clearInterval(id)
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [receipt, getAccessToken])
 
   // Prefill the user's own deposit address once loaded.
@@ -191,15 +185,36 @@ function DepositPageInner() {
       {error && <DashboardError error={error} />}
 
       {receipt ? (
-        <Receipt
-          type="deposit"
-          amount={receipt.amount}
-          counterparty={receipt.address}
-          explorer={receipt.explorer}
-          status={confirmed ? 'completed' : 'pending'}
-          live={!confirmed}
-          onBack={() => router.push('/dashboard')}
-        />
+        <div className="max-w-xl mx-auto space-y-4">
+          {!confirmed && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={checkDeposit}
+              className="w-full"
+            >
+              <RefreshCw size={14} className="mr-1.5" />
+              Check now for on-chain confirmation
+            </Button>
+          )}
+          <Receipt
+            type="deposit"
+            amount={receipt.amount}
+            counterparty={receipt.address}
+            explorer={receipt.explorer}
+            status={confirmed ? 'completed' : 'pending'}
+            live={!confirmed}
+            onBack={() => router.push('/dashboard')}
+          />
+          {!confirmed && (
+            <p className="text-xs text-white/40 text-center">
+              Deposit is broadcast and waiting for an on-chain confirmation
+              (usually 2–5 minutes). You can leave this page — the deposit will
+              be credited automatically once confirmed.
+            </p>
+          )}
+        </div>
       ) : (
         <div className="max-w-xl mx-auto">
           {/* QR code card */}
