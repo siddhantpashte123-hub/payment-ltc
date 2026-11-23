@@ -46,9 +46,19 @@ export function decryptKey(enc: string): string {
   const data = buf.subarray(28)
   const decipher = crypto.createDecipheriv('aes-256-gcm', key, iv)
   decipher.setAuthTag(tag)
-  return Buffer.concat([decipher.update(data), decipher.final()]).toString(
-    'utf8'
-  )
+  try {
+    return Buffer.concat([decipher.update(data), decipher.final()]).toString(
+      'utf8'
+    )
+  } catch {
+    // AES-256-GCM auth-tag mismatch: the blob was encrypted with a different
+    // WALLET_SECRET_KEY than the one currently configured. Surface a clear,
+    // honest error instead of the raw "Unsupported state or unable to
+    // authenticate data" message.
+    throw new Error(
+      'Wallet key mismatch: this wallet was encrypted with a different secret key and cannot be unlocked.'
+    )
+  }
 }
 
 // ---------------- Address generation ----------------
