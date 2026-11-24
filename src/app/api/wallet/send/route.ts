@@ -6,7 +6,7 @@ import {
   explorerTxUrl,
   estimateConfirmationTime,
 } from '@/lib/blockchain'
-import { sendSol, solExplorerTxUrl, SOL_FEE_LITOSHI } from '@/lib/solana'
+import { sendSol, solExplorerTxUrl, SOL_FEE_LITOSHI, SOL_FEE_LTC } from '@/lib/solana'
 
 export async function POST(request: Request) {
   try {
@@ -132,7 +132,12 @@ export async function POST(request: Request) {
       : wallet.priv_key_encrypted
     const fromAddress = isSol ? wallet.sol_address : wallet.ltc_address
 
-    if (amount > balance) {
+    // For SOL the network fee is paid by the sender's keypair from the same
+    // balance, so the amount can never be the full balance (amount + fee must
+    // fit). For LTC, sendLtc() auto-reduces the amount when amount + fee exceeds
+    // the funds, so this is only a guard against clearly-over amounts.
+    const solFee = SOL_FEE_LTC
+    if (isSol ? amount + solFee > balance : amount > balance) {
       return NextResponse.json(
         { error: 'Insufficient balance for this transaction' },
         { status: 400 }
