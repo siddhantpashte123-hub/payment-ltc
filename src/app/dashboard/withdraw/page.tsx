@@ -15,6 +15,7 @@ import { Input } from '@/components/ui/input'
 import { useToast } from '@/components/ui/toast'
 import { useNotifications } from '@/lib/notifications'
 import { FEE_TIERS, SOL_FEE_LTC } from '@/lib/fees'
+import { looksLikeLtcAddress, looksLikeSolAddress } from '@/lib/addressFormat'
 import {
   User,
   AlertCircle,
@@ -472,6 +473,32 @@ function WithdrawPageInner() {
                     This address isn't in your Contacts. Double-check it before
                     sending — a wrong address can't be recovered.
                   </p>
+                )}
+                {to.trim().length > 0 && (
+                  coin === 'ltc' ? (
+                    looksLikeLtcAddress(to) ? (
+                      <p className="text-xs text-emerald-400/90 mt-1.5 flex items-center gap-1">
+                        <Check size={11} className="flex-shrink-0" />
+                        Valid Litecoin address format
+                      </p>
+                    ) : (
+                      <p className="text-xs text-red-400/90 mt-1.5 flex items-center gap-1">
+                        <AlertCircle size={11} className="flex-shrink-0" />
+                        Doesn't look like a Litecoin address — it should start
+                        with "L", "M", "3", or "ltc1"
+                      </p>
+                    )
+                  ) : looksLikeSolAddress(to) ? (
+                    <p className="text-xs text-emerald-400/90 mt-1.5 flex items-center gap-1">
+                      <Check size={11} className="flex-shrink-0" />
+                      Valid Solana address format
+                    </p>
+                  ) : (
+                    <p className="text-xs text-red-400/90 mt-1.5 flex items-center gap-1">
+                      <AlertCircle size={11} className="flex-shrink-0" />
+                      Doesn't look like a valid Solana address
+                    </p>
+                  )
                 )}
               </div>
               <div>
