@@ -5,8 +5,15 @@ import {
   sendLtc,
   explorerTxUrl,
   estimateConfirmationTime,
+  isValidLtcAddress,
 } from '@/lib/blockchain'
-import { sendSol, solExplorerTxUrl, SOL_FEE_LITOSHI, SOL_FEE_LTC } from '@/lib/solana'
+import {
+  sendSol,
+  solExplorerTxUrl,
+  SOL_FEE_LITOSHI,
+  SOL_FEE_LTC,
+  isValidSolAddress,
+} from '@/lib/solana'
 
 export async function POST(request: Request) {
   try {
@@ -58,6 +65,18 @@ export async function POST(request: Request) {
     if (!to || !isFinite(amount) || amount <= 0) {
       return NextResponse.json(
         { error: 'Invalid recipient address or amount' },
+        { status: 400 }
+      )
+    }
+
+    // Reject malformed / wrong-network recipient addresses BEFORE any funds
+    // move. Sending to an invalid address would otherwise broadcast to a burn
+    // address or fail at broadcast — a real, irrecoverable loss of funds.
+    if (coin === 'sol' ? !isValidSolAddress(to) : !isValidLtcAddress(to)) {
+      return NextResponse.json(
+        {
+          error: `Invalid ${coin.toUpperCase()} recipient address — please check it and try again.`,
+        },
         { status: 400 }
       )
     }

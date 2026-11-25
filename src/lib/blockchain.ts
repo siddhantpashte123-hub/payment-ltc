@@ -1,4 +1,4 @@
-import { PrivateKey, Transaction } from 'bitcore-lib-litecoin'
+import { PrivateKey, Transaction, Address } from 'bitcore-lib-litecoin'
 import crypto from 'crypto'
 
 /**
@@ -68,6 +68,22 @@ export function generateWallet(): { address: string; wif: string } {
   return {
     address: priv.toAddress().toString(),
     wif: priv.toWIF(),
+  }
+}
+
+/**
+ * Validate a Litecoin mainnet address. Uses bitcore's Address parser, which
+ * throws on non-base58 input, too-short input, or addresses that belong to a
+ * different network (e.g. BTC legacy '1' addresses). Guards against sending
+ * LTC to a malformed/wrong-network address (which would otherwise broadcast
+ * to a burn address or fail at broadcast).
+ */
+export function isValidLtcAddress(address: string): boolean {
+  try {
+    Address.fromString(address)
+    return true
+  } catch {
+    return false
   }
 }
 

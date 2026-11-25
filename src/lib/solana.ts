@@ -57,6 +57,20 @@ export async function restoreSolKeypair(secretKeyB64: string): Promise<Keypair> 
   return await Keypair.fromSecretKey(Buffer.from(secretKeyB64, 'base64'))
 }
 
+/**
+ * Validate a Solana base58 public-key address. PublicKey() throws on invalid
+ * base58 or an address that is not a valid ed25519 pubkey — guards against
+ * sending SOL to a malformed address.
+ */
+export function isValidSolAddress(address: string): boolean {
+  try {
+    new PublicKey(address)
+    return true
+  } catch {
+    return false
+  }
+}
+
 // ---------------- Balance ----------------
 
 /** Confirmed SOL balance for an address. */
