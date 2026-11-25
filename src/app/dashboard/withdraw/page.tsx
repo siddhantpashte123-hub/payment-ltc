@@ -266,7 +266,7 @@ function WithdrawPageInner() {
     const amt = getLtcAmount()
     const addr = to.trim()
     if (!addr) {
-      setFormError('Please enter a recipient LTC address')
+      setFormError(`Please enter a recipient ${unit} address`)
       return false
     }
     if (currency === 'USD' && priceUsd <= 0) {
@@ -365,6 +365,7 @@ function WithdrawPageInner() {
           explorer={receipt.explorer}
           status="completed"
           unit={unit}
+          explorerLabel={coin === 'sol' ? 'Solscan' : 'SoChain'}
           onBack={() => router.push('/dashboard')}
         />
       ) : (

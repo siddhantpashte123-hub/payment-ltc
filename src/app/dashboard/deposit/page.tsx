@@ -211,6 +211,7 @@ function DepositPageInner() {
             status={confirmed ? 'completed' : 'pending'}
             live={!confirmed}
             unit={unit}
+            explorerLabel={coin === 'sol' ? 'Solscan' : 'SoChain'}
             onBack={() => router.push('/dashboard')}
           />
           {!confirmed && (

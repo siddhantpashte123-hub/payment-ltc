@@ -15,6 +15,8 @@ interface ReceiptProps {
   onBack?: () => void
   /** Coin unit label (e.g. 'LTC' or 'SOL'). */
   unit?: string
+  /** Explorer name shown on the "View on …" link (SoChain for LTC, Solscan for SOL). */
+  explorerLabel?: string
 }
 
 export function Receipt({
@@ -27,6 +29,7 @@ export function Receipt({
   live,
   onBack,
   unit = 'LTC',
+  explorerLabel = 'SoChain',
 }: ReceiptProps) {
   const isDeposit = type === 'deposit'
   const isConfirming = status === 'pending' && live
@@ -160,7 +163,7 @@ export function Receipt({
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-1.5 text-xs font-medium text-emerald-400 hover:text-emerald-300 transition-colors"
               >
-                View on SoChain
+                View on {explorerLabel}
                 <ExternalLink size={12} />
               </a>
             </div>
