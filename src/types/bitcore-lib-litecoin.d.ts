@@ -4,12 +4,22 @@ declare module 'bitcore-lib-litecoin' {
     constructor(hash: Buffer)
     toString(): string
   }
+  export class Script {
+    add(arg: number | Buffer): this
+    toBuffer(): Buffer
+  }
   export class PrivateKey {
     constructor(wif?: string)
     toAddress(): { toString(): string }
     toWIF(): string
   }
+  export class Output {
+    constructor(opts: { script: Buffer; satoshis: number })
+    script: Script
+    satoshis: number
+  }
   export class Transaction {
+    static Output: typeof Output
     from(utxos: Array<{
       txId: string
       outputNo: number
@@ -18,6 +28,7 @@ declare module 'bitcore-lib-litecoin' {
       address: string
     }>): this
     to(address: string, satoshis: number): this
+    addOutput(output: Output): this
     change(address: string): this
     fee(fee: number): this
     sign(privateKey: PrivateKey): this
@@ -27,6 +38,6 @@ declare module 'bitcore-lib-litecoin' {
     /** Fee rate used by _estimateFee (litoshi per kb). */
     _feePerKb: number
     /** Built outputs (tx.to adds an entry; change() adds one). */
-    outputs: Array<{ satoshis: number }>
+    outputs: Output[]
   }
 }

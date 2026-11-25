@@ -1,4 +1,4 @@
-import { PrivateKey, Transaction, Address } from 'bitcore-lib-litecoin'
+import { PrivateKey, Transaction, Address, Script } from 'bitcore-lib-litecoin'
 import { bech32 } from 'bech32'
 import crypto from 'crypto'
 
@@ -79,30 +79,53 @@ export function generateWallet(): { address: string; wif: string } {
  *
  * bitcore-lib-litecoin only understands base58 addresses (L/M/3) — it throws
  * "Non-base58 character" on Bech32 (ltc1...) addresses for BOTH parsing and
- * tx construction. Bech32 P2WPKH addresses are valid, modern LTC addresses,
- * so we decode them and convert to the base58 P2PKH equivalent of the SAME
- * 20-byte hash160. Because P2PKH and P2WPKH of the same hash160 are controlled
- * by the same key, the recipient can still spend the funds — the send succeeds
- * and the funds are not lost.
+ * tx construction. Bech32 addresses are valid, modern LTC addresses, so we
+ * decode them:
+ *  - P2WPKH (20-byte program) → converted to the base58 P2PKH equivalent of
+ *    the SAME hash160. Because P2PKH and P2WPKH of the same hash160 are
+ *    controlled by the same key, the recipient can still spend the funds.
+ *  - P2WSH / multisig (32-byte program) → a proper witness output script
+ *    (OP_0 <32-byte program>) is added to the transaction directly, since it
+ *    cannot be reduced to a single-sig base58 address.
  *
- * Returns the base58 address to broadcast to, or null when the input is not a
- * valid sendable LTC address (malformed, wrong network, or a non-convertible
- * segwit type such as P2WSH/multisig).
+ * The input is sanitized first: copy-pasted addresses frequently carry
+ * invisible characters (zero-width spaces, non-breaking spaces, tabs) that
+ * would otherwise make the Bech32 checksum fail and reject a valid address.
+ *
+ * Returns null when the input is not a valid, sendable LTC address (empty
+ * after sanitization, malformed, wrong network, or a non-segwit type that
+ * neither base58 nor a 20/32-byte witness program can represent).
  */
-export function toBase58LtcAddress(address: string): string | null {
-  const addr = address.trim()
+export type LtcRecipient =
+  | { kind: 'address'; address: string }
+  | { kind: 'witness'; script: Buffer }
 
-  // Bech32 (ltc1...) P2WPKH — decode + convert to base58 P2PKH.
+/** Strip copy-paste contamination (invisible/whitespace/stray chars). */
+function sanitizeAddress(address: string): string {
+  return address.replace(/[^A-Za-z0-9]/g, '')
+}
+
+export function resolveLtcRecipient(address: string): LtcRecipient | null {
+  const addr = sanitizeAddress(address)
+  if (!addr) return null
+
+  // Bech32 (ltc1...) — decode and convert per witness-program type.
   if (addr.toLowerCase().startsWith('ltc1')) {
     try {
       const { prefix, words } = bech32.decode(addr)
       // Must be a Litecoin bech32 address (not another chain's prefix).
       if (prefix !== 'ltc') return null
       const program = Buffer.from(bech32.fromWords(words))
-      // P2WPKH witness program is exactly 20 bytes. P2WSH (32 bytes) and
-      // segwit multisig cannot be converted to a base58 single-sig output.
-      if (program.length !== 20) return null
-      return new Address(program).toString()
+      // P2WPKH: 20-byte program → base58 P2PKH of the same hash160.
+      if (program.length === 20) {
+        return { kind: 'address', address: new Address(program).toString() }
+      }
+      // P2WSH / segwit multisig: 32-byte program → witness output script.
+      if (program.length === 32) {
+        const script = new Script().add(0).add(program)
+        return { kind: 'witness', script: script.toBuffer() }
+      }
+      return null
     } catch {
       return null
     }
@@ -111,15 +134,21 @@ export function toBase58LtcAddress(address: string): string | null {
   // Base58 — validate via bitcore's Address parser (throws on non-base58,
   // too-short, or wrong-network input such as BTC legacy '1' addresses).
   try {
-    return Address.fromString(addr).toString()
+    return { kind: 'address', address: Address.fromString(addr).toString() }
   } catch {
     return null
   }
 }
 
+/** Returns the base58 broadcast address for base58/P2WPKH input, or null. */
+export function toBase58LtcAddress(address: string): string | null {
+  const recipient = resolveLtcRecipient(address)
+  return recipient && recipient.kind === 'address' ? recipient.address : null
+}
+
 /** True if the address is a valid, sendable Litecoin address (base58 or Bech32). */
 export function isValidLtcAddress(address: string): boolean {
-  return toBase58LtcAddress(address) !== null
+  return resolveLtcRecipient(address) !== null
 }
 
 // ---------------- SoChain API v3 ----------------
@@ -404,13 +433,14 @@ export { FEE_TIERS, type FeeTier }
  * transaction can still be broadcast — "send all" works out of the box.
  */
 export async function sendLtc(params: {
-  to: string
+  to?: string
+  toScript?: Buffer
   amount: number
   wif: string
   changeAddress: string
   feeTier?: FeeTier
 }): Promise<SendResult> {
-  const { to, amount, wif, changeAddress, feeTier = 'normal' } = params
+  const { to, toScript, amount, wif, changeAddress, feeTier = 'normal' } = params
   let satoshis = Math.floor(amount * LITOSHI_PER_LTC)
 
   const utxos = await getUnspent(changeAddress)
@@ -444,9 +474,20 @@ export async function sendLtc(params: {
   }
 
   // Build the transaction with the FINAL output amount (not the requested one).
+  // toScript carries a pre-built witness output script (for P2WSH/multisig
+  // bech32 recipients, which cannot be expressed as a single-sig base58
+  // address); otherwise `to` is a base58 broadcast address.
   const tx = new Transaction()
   tx.from(utxos)
-  tx.to(to, actualSatoshis)
+  if (toScript) {
+    tx.addOutput(
+      new Transaction.Output({ script: toScript, satoshis: actualSatoshis })
+    )
+  } else if (to) {
+    tx.to(to, actualSatoshis)
+  } else {
+    throw new Error('No LTC recipient specified')
+  }
 
   // _feePerKb makes bitcore's internal _estimateFee() (used by the
   // security-margin minimum AND the "fee too large" check) use this tier's

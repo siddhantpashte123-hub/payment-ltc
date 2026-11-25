@@ -5,7 +5,8 @@ import {
   sendLtc,
   explorerTxUrl,
   estimateConfirmationTime,
-  toBase58LtcAddress,
+  resolveLtcRecipient,
+  type LtcRecipient,
 } from '@/lib/blockchain'
 import {
   sendSol,
@@ -72,16 +73,18 @@ export async function POST(request: Request) {
     // Validate + normalize the recipient address BEFORE any funds move.
     // Sending to an invalid address would otherwise broadcast to a burn
     // address or fail at broadcast — a real, irrecoverable loss of funds.
-    // For LTC, Bech32 (ltc1...) addresses are converted to their base58 P2PKH
-    // equivalent (same 20-byte hash160 / same key, so the recipient can still
-    // spend the funds) because bitcore can only build transactions for
-    // base58 addresses. For SOL, validate the pubkey. The user-entered `to`
-    // is still used for the whitelist check and transaction history below;
-    // `sendTo` is the actual on-chain broadcast target.
-    let sendTo: string = to
+    // For LTC, Bech32 (ltc1...) addresses are resolved to a broadcastable
+    // target: P2WPKH → base58 P2PKH of the same 20-byte hash160 (same key,
+    // so the recipient can still spend the funds); P2WSH/multisig → a
+    // witness output script added directly to the transaction. Copy-paste
+    // contamination (invisible characters) is stripped during resolution.
+    // For SOL, validate the pubkey. The user-entered `to` is still used for
+    // the whitelist check and transaction history below; the resolved
+    // recipient is the actual on-chain broadcast target.
+    let ltcRecipient: LtcRecipient | null = null
     if (coin === 'ltc') {
-      const converted = toBase58LtcAddress(to)
-      if (!converted) {
+      ltcRecipient = resolveLtcRecipient(to)
+      if (!ltcRecipient) {
         return NextResponse.json(
           {
             error: 'Invalid LTC recipient address — please check it and try again.',
@@ -89,7 +92,6 @@ export async function POST(request: Request) {
           { status: 400 }
         )
       }
-      sendTo = converted
     } else if (!isValidSolAddress(to)) {
       return NextResponse.json(
         {
@@ -211,7 +213,7 @@ export async function POST(request: Request) {
       // Solana send.
       try {
         const result = await sendSol({
-          to: sendTo,
+          to,
           amount,
           secretKeyB64: wif,
         })
@@ -229,7 +231,10 @@ export async function POST(request: Request) {
       // Litecoin send.
       try {
         const result = await sendLtc({
-          to: sendTo,
+          to:
+            ltcRecipient?.kind === 'address' ? ltcRecipient.address : undefined,
+          toScript:
+            ltcRecipient?.kind === 'witness' ? ltcRecipient.script : undefined,
           amount,
           wif,
           changeAddress: wallet.ltc_address,
