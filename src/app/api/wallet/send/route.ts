@@ -90,7 +90,8 @@ export async function POST(request: Request) {
         console.warn('Invalid LTC recipient address rejected:', to.slice(0, 40))
         return NextResponse.json(
           {
-            error: 'Invalid LTC recipient address — please check it and try again.',
+            error:
+              'Invalid LTC recipient address — Litecoin addresses start with "L", "M", "3", or "ltc1". Please check for typos and try again.',
           },
           { status: 400 }
         )
