@@ -5,7 +5,7 @@ import {
   sendLtc,
   explorerTxUrl,
   estimateConfirmationTime,
-  isValidLtcAddress,
+  toBase58LtcAddress,
 } from '@/lib/blockchain'
 import {
   sendSol,
@@ -69,13 +69,31 @@ export async function POST(request: Request) {
       )
     }
 
-    // Reject malformed / wrong-network recipient addresses BEFORE any funds
-    // move. Sending to an invalid address would otherwise broadcast to a burn
+    // Validate + normalize the recipient address BEFORE any funds move.
+    // Sending to an invalid address would otherwise broadcast to a burn
     // address or fail at broadcast — a real, irrecoverable loss of funds.
-    if (coin === 'sol' ? !isValidSolAddress(to) : !isValidLtcAddress(to)) {
+    // For LTC, Bech32 (ltc1...) addresses are converted to their base58 P2PKH
+    // equivalent (same 20-byte hash160 / same key, so the recipient can still
+    // spend the funds) because bitcore can only build transactions for
+    // base58 addresses. For SOL, validate the pubkey. The user-entered `to`
+    // is still used for the whitelist check and transaction history below;
+    // `sendTo` is the actual on-chain broadcast target.
+    let sendTo: string = to
+    if (coin === 'ltc') {
+      const converted = toBase58LtcAddress(to)
+      if (!converted) {
+        return NextResponse.json(
+          {
+            error: 'Invalid LTC recipient address — please check it and try again.',
+          },
+          { status: 400 }
+        )
+      }
+      sendTo = converted
+    } else if (!isValidSolAddress(to)) {
       return NextResponse.json(
         {
-          error: `Invalid ${coin.toUpperCase()} recipient address — please check it and try again.`,
+          error: 'Invalid SOL recipient address — please check it and try again.',
         },
         { status: 400 }
       )
@@ -193,7 +211,7 @@ export async function POST(request: Request) {
       // Solana send.
       try {
         const result = await sendSol({
-          to,
+          to: sendTo,
           amount,
           secretKeyB64: wif,
         })
@@ -211,7 +229,7 @@ export async function POST(request: Request) {
       // Litecoin send.
       try {
         const result = await sendLtc({
-          to,
+          to: sendTo,
           amount,
           wif,
           changeAddress: wallet.ltc_address,
