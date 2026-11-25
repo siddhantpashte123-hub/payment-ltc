@@ -1,4 +1,5 @@
 import { PrivateKey, Transaction, Address } from 'bitcore-lib-litecoin'
+import { bech32 } from 'bech32'
 import crypto from 'crypto'
 
 /**
@@ -72,19 +73,53 @@ export function generateWallet(): { address: string; wif: string } {
 }
 
 /**
- * Validate a Litecoin mainnet address. Uses bitcore's Address parser, which
- * throws on non-base58 input, too-short input, or addresses that belong to a
- * different network (e.g. BTC legacy '1' addresses). Guards against sending
- * LTC to a malformed/wrong-network address (which would otherwise broadcast
- * to a burn address or fail at broadcast).
+ * Normalize a Litecoin address to the base58 form bitcore can build a
+ * broadcastable transaction for, OR return null if it is not a valid sendable
+ * LTC address.
+ *
+ * bitcore-lib-litecoin only understands base58 addresses (L/M/3) — it throws
+ * "Non-base58 character" on Bech32 (ltc1...) addresses for BOTH parsing and
+ * tx construction. Bech32 P2WPKH addresses are valid, modern LTC addresses,
+ * so we decode them and convert to the base58 P2PKH equivalent of the SAME
+ * 20-byte hash160. Because P2PKH and P2WPKH of the same hash160 are controlled
+ * by the same key, the recipient can still spend the funds — the send succeeds
+ * and the funds are not lost.
+ *
+ * Returns the base58 address to broadcast to, or null when the input is not a
+ * valid sendable LTC address (malformed, wrong network, or a non-convertible
+ * segwit type such as P2WSH/multisig).
  */
-export function isValidLtcAddress(address: string): boolean {
-  try {
-    Address.fromString(address)
-    return true
-  } catch {
-    return false
+export function toBase58LtcAddress(address: string): string | null {
+  const addr = address.trim()
+
+  // Bech32 (ltc1...) P2WPKH — decode + convert to base58 P2PKH.
+  if (addr.toLowerCase().startsWith('ltc1')) {
+    try {
+      const { prefix, words } = bech32.decode(addr)
+      // Must be a Litecoin bech32 address (not another chain's prefix).
+      if (prefix !== 'ltc') return null
+      const program = Buffer.from(bech32.fromWords(words))
+      // P2WPKH witness program is exactly 20 bytes. P2WSH (32 bytes) and
+      // segwit multisig cannot be converted to a base58 single-sig output.
+      if (program.length !== 20) return null
+      return new Address(program).toString()
+    } catch {
+      return null
+    }
   }
+
+  // Base58 — validate via bitcore's Address parser (throws on non-base58,
+  // too-short, or wrong-network input such as BTC legacy '1' addresses).
+  try {
+    return Address.fromString(addr).toString()
+  } catch {
+    return null
+  }
+}
+
+/** True if the address is a valid, sendable Litecoin address (base58 or Bech32). */
+export function isValidLtcAddress(address: string): boolean {
+  return toBase58LtcAddress(address) !== null
 }
 
 // ---------------- SoChain API v3 ----------------

@@ -1,6 +1,8 @@
 declare module 'bitcore-lib-litecoin' {
   export class Address {
     static fromString(address: string): Address
+    constructor(hash: Buffer)
+    toString(): string
   }
   export class PrivateKey {
     constructor(wif?: string)
