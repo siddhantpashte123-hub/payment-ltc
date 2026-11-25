@@ -85,6 +85,9 @@ export async function POST(request: Request) {
     if (coin === 'ltc') {
       ltcRecipient = resolveLtcRecipient(to)
       if (!ltcRecipient) {
+        // Diagnostic: log the rejected input (truncated) so the exact failing
+        // address format is visible in the server logs.
+        console.warn('Invalid LTC recipient address rejected:', to.slice(0, 40))
         return NextResponse.json(
           {
             error: 'Invalid LTC recipient address — please check it and try again.',
