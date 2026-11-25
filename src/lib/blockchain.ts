@@ -112,7 +112,11 @@ export function resolveLtcRecipient(address: string): LtcRecipient | null {
   // Bech32 (ltc1...) — decode and convert per witness-program type.
   if (addr.toLowerCase().startsWith('ltc1')) {
     try {
-      const { prefix, words } = bech32.decode(addr)
+      // Bech32 requires all-lower or all-upper case; mixed case is rejected
+      // by the spec even when the checksum is valid. Normalize to lowercase
+      // first — the checksum still validates, so only genuinely valid
+      // addresses (including mixed-case copies) pass.
+      const { prefix, words } = bech32.decode(addr.toLowerCase())
       // Must be a Litecoin bech32 address (not another chain's prefix).
       if (prefix !== 'ltc') return null
       const program = Buffer.from(bech32.fromWords(words))
