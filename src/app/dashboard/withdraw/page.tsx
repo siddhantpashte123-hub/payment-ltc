@@ -277,10 +277,17 @@ function WithdrawPageInner() {
       setFormError('Please enter a valid amount')
       return false
     }
-    // Max sendable is balance minus fee for the selected tier.
-    if (amt > (tierMax > 0 ? tierMax : balance)) {
+    // Max sendable limit. LTC can send up to the FULL balance because
+    // sendLtc() auto-reduces the amount by the network fee when
+    // amount + fee > balance (the fee is deducted from the amount) — the
+    // real hard limit is only amount > balance. SOL cannot auto-reduce, so
+    // it keeps the fee-adjusted limit (balance minus fee).
+    const hardMax = coin === 'ltc' ? balance : tierMax > 0 ? tierMax : balance
+    if (amt > hardMax) {
       setFormError(
-        'Insufficient balance — amount exceeds what can be sent after the network fee'
+        coin === 'ltc'
+          ? 'Insufficient balance — amount exceeds your available balance'
+          : 'Insufficient balance — amount exceeds what can be sent after the network fee'
       )
       return false
     }
@@ -523,7 +530,10 @@ function WithdrawPageInner() {
                     variant="ghost"
                     size="sm"
                     onClick={() => {
-                      const max = tierMax > 0 ? tierMax : balance
+                      // LTC: fill the full balance — the send auto-reduces the
+                      // amount by the fee. SOL: fill balance minus fee (no
+                      // auto-reduce on Solana sends).
+                      const max = coin === 'ltc' ? balance : tierMax > 0 ? tierMax : balance
                       if (currency === 'USD') {
                         const maxUsd = priceUsd > 0 ? max * priceUsd : 0
                         setUsdAmount(maxUsd.toFixed(2))
@@ -715,7 +725,9 @@ function WithdrawPageInner() {
                 )}
                 <ModalRow label="Balance after">
                   <span className="text-white/70">
-                    {(balance - getLtcAmount() - networkFee).toFixed(8)} {unit}
+                    {Math.max(0, balance - getLtcAmount() - networkFee).toFixed(
+                      8
+                    )} {unit}
                   </span>
                 </ModalRow>
               </div>
