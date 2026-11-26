@@ -42,7 +42,7 @@ export function diagnoseLtcAddress(addr: string): string | null {
   if (/^ltc1/i.test(a)) {
     const suffix = a.slice(4)
     if (suffix.length !== 38) {
-      return `This looks like an "ltc1" address, but it has ${a.length} characters — a valid "ltc1" address is exactly ${LTC_BECH32_TOTAL}. Re-copy the address from the sender and paste it again (don't retype it), and double-check the length before sending.`
+      return `This looks like an "ltc1" address, but it has ${a.length} characters — a valid "ltc1" address is exactly ${LTC_BECH32_TOTAL}, and this one cannot receive Litecoin on the network. In Trust Wallet: open your Litecoin account → Receive → tap the copy icon, then paste it here. Never retype these addresses.`
     }
     if (!/^[qpzry9x8gf2tvdw0s3jn54khce6mua7l]+$/.test(suffix)) {
       return `This "ltc1" address contains invalid characters — "ltc1" addresses use only: ${BECH32_CHARSET}.`
@@ -53,7 +53,7 @@ export function diagnoseLtcAddress(addr: string): string | null {
   // --- Base58 (L / M / 3) ---
   if (/^[L3M]/.test(a)) {
     if (a.length < LTC_BASE58_MIN || a.length > LTC_BASE58_MAX) {
-      return `This address starts with "${a[0]}", but has ${a.length} characters — a valid Litecoin address has ${LTC_BASE58_MIN}–${LTC_BASE58_MAX}. Re-copy the address from the sender and paste it again (don't retype it), and double-check the length before sending.`
+      return `This address starts with "${a[0]}", but has ${a.length} characters — a valid Litecoin address has ${LTC_BASE58_MIN}–${LTC_BASE58_MAX} and this one cannot receive Litecoin. In Trust Wallet: open your Litecoin account → Receive → tap the copy icon, then paste it here. Never retype these addresses.`
     }
     if (!/^[L3M][1-9A-HJ-NP-Za-km-z]+$/.test(a)) {
       return 'This address contains invalid characters (Litecoin base58 excludes 0, O, I, and l).'
